@@ -48,7 +48,11 @@ text = "not connected"
 
 [node name="CreateBtn" type="Button" parent="VBox"]
 layout_mode = 2
-text = "Create demo game (1 Heuristic + 3 Random)"
+text = "Create demo: 4 agents (1 Heuristic + 3 Random)"
+
+[node name="CreateHumanBtn" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Create demo: you (P0) vs 3 agents"
 
 [node name="GamesLabel" type="Label" parent="VBox"]
 layout_mode = 2
@@ -68,6 +72,14 @@ text = "Auto-advance"
 [node name="ViewBtn" type="Button" parent="VBox/HBoxButtons"]
 layout_mode = 2
 text = "Refresh view"
+
+[node name="SubmitBtn" type="Button" parent="VBox/HBoxButtons"]
+layout_mode = 2
+text = "Submit orders"
+
+[node name="ResetBtn" type="Button" parent="VBox/HBoxButtons"]
+layout_mode = 2
+text = "Reset"
 
 [node name="ViewSelect" type="HBoxContainer" parent="VBox"]
 layout_mode = 2

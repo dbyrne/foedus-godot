@@ -33,6 +33,8 @@ signal unit_clicked(unit_id: int, owner: int)
 
 var view_data: Dictionary = {}
 var selected_unit_id: int = -1
+# Local pending orders awaiting submit; str(unit_id) -> order dict.
+var pending_orders: Dictionary = {}
 
 # Cache: node_id (int) -> Vector2(q, r). Rebuilt on update_view.
 var _coords_by_node: Dictionary = {}
@@ -62,6 +64,11 @@ func clear_selection() -> void:
 
 func select_unit(unit_id: int) -> void:
 	selected_unit_id = unit_id
+	queue_redraw()
+
+
+func set_pending_orders(orders: Dictionary) -> void:
+	pending_orders = orders.duplicate()
 	queue_redraw()
 
 
@@ -123,6 +130,44 @@ func _draw() -> void:
 
 		if int(u["id"]) == selected_unit_id:
 			draw_arc(px2, HEX_SIZE * 0.42, 0.0, TAU, 36, SELECT_RING, 3.0)
+
+	# Pending-order overlays: a thin line from source to destination per
+	# pending Move; a small ring on the source for pending Hold.
+	for unit_id_str in pending_orders:
+		var order: Dictionary = pending_orders[unit_id_str]
+		var u_data: Dictionary = units.get(unit_id_str, {})
+		if u_data.is_empty():
+			continue
+		var src_loc_str: String = str(u_data["location"])
+		if not coords.has(src_loc_str):
+			continue
+		var src_qr: Array = coords[src_loc_str]
+		var src_px: Vector2 = _axial_to_pixel(src_qr[0], src_qr[1], origin)
+		var t: String = str(order.get("type", ""))
+		if t == "Move":
+			var dest_id: int = int(order.get("dest", -1))
+			var dest_str: String = str(dest_id)
+			if not coords.has(dest_str):
+				continue
+			var dest_qr: Array = coords[dest_str]
+			var dest_px: Vector2 = _axial_to_pixel(dest_qr[0], dest_qr[1], origin)
+			_draw_arrow(src_px, dest_px, SELECT_RING)
+		elif t == "Hold":
+			draw_arc(src_px, HEX_SIZE * 0.50, 0.0, TAU, 36, SELECT_RING, 2.0)
+
+
+func _draw_arrow(from: Vector2, to: Vector2, color: Color) -> void:
+	# Pull endpoints in a bit so arrows don't collide with unit circles.
+	var dir: Vector2 = (to - from).normalized()
+	var src: Vector2 = from + dir * (HEX_SIZE * 0.32)
+	var dst: Vector2 = to - dir * (HEX_SIZE * 0.32)
+	draw_line(src, dst, color, 2.5)
+	# Arrowhead.
+	var perp: Vector2 = Vector2(-dir.y, dir.x)
+	var head_a: Vector2 = dst - dir * 10.0 + perp * 5.0
+	var head_b: Vector2 = dst - dir * 10.0 - perp * 5.0
+	draw_line(dst, head_a, color, 2.5)
+	draw_line(dst, head_b, color, 2.5)
 
 
 func _draw_placeholder() -> void:

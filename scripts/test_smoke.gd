@@ -51,9 +51,12 @@ func _init() -> void:
 		"VBox",
 		"VBox/ConnectBtn",
 		"VBox/CreateBtn",
+		"VBox/CreateHumanBtn",
 		"VBox/HBoxButtons/AdvanceBtn",
 		"VBox/HBoxButtons/AutoBtn",
 		"VBox/HBoxButtons/ViewBtn",
+		"VBox/HBoxButtons/SubmitBtn",
+		"VBox/HBoxButtons/ResetBtn",
 		"VBox/HSplit/OutputLabel",
 		"VBox/HSplit/HexMap",
 	]
