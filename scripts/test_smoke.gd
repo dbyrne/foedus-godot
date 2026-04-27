@@ -49,15 +49,23 @@ func _init() -> void:
 	# Verify expected child structure: a few key nodes must exist.
 	var required_paths := [
 		"VBox",
-		"VBox/ConnectBtn",
-		"VBox/CreateBtn",
-		"VBox/CreateHumanBtn",
+		"VBox/HBox/ConnectBtn",
+		"VBox/GameCreate/HSeats/NumPlayersSpin",
+		"VBox/GameCreate/HSeats/Seat0Opt",
+		"VBox/GameCreate/HSeats/Seat5Opt",
+		"VBox/GameCreate/HConfig/MaxTurnsSpin",
+		"VBox/GameCreate/HConfig/PeaceSpin",
+		"VBox/GameCreate/HConfig/SeedSpin",
+		"VBox/GameCreate/HPresets/PresetAllBtn",
+		"VBox/GameCreate/HPresets/PresetHumanBtn",
+		"VBox/GameCreate/HPresets/CreateBtn",
 		"VBox/HBoxButtons/AdvanceBtn",
 		"VBox/HBoxButtons/AutoBtn",
 		"VBox/HBoxButtons/ViewBtn",
 		"VBox/HBoxButtons/SubmitBtn",
 		"VBox/HBoxButtons/ResetBtn",
-		"VBox/HSplit/OutputLabel",
+		"VBox/HSplit/LeftPanel/OutputLabel",
+		"VBox/HSplit/LeftPanel/OrderScroll/OrderList",
 		"VBox/HSplit/HexMap",
 	]
 	for p in required_paths:

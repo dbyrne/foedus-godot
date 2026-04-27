@@ -38,21 +38,109 @@ custom_minimum_size = Vector2(280, 0)
 layout_mode = 2
 text = "http://127.0.0.1:8090"
 
-[node name="ConnectBtn" type="Button" parent="VBox"]
+[node name="ConnectBtn" type="Button" parent="VBox/HBox"]
 layout_mode = 2
-text = "Connect (GET /healthz)"
+text = "Connect"
 
 [node name="StatusLabel" type="Label" parent="VBox"]
 layout_mode = 2
 text = "not connected"
+autowrap_mode = 3
 
-[node name="CreateBtn" type="Button" parent="VBox"]
+[node name="GameCreate" type="VBoxContainer" parent="VBox"]
 layout_mode = 2
-text = "Create demo: 4 agents (1 Heuristic + 3 Random)"
 
-[node name="CreateHumanBtn" type="Button" parent="VBox"]
+[node name="GameCreateLabel" type="Label" parent="VBox/GameCreate"]
 layout_mode = 2
-text = "Create demo: you (P0) vs 3 agents"
+text = "Game setup:"
+theme_override_font_sizes/font_size = 14
+
+[node name="HSeats" type="HBoxContainer" parent="VBox/GameCreate"]
+layout_mode = 2
+
+[node name="PlayersLabel" type="Label" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "players:"
+
+[node name="NumPlayersSpin" type="SpinBox" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+min_value = 2.0
+max_value = 6.0
+value = 4.0
+
+[node name="VSep" type="VSeparator" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+
+[node name="Seat0Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "Seat 0"
+
+[node name="Seat1Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "Seat 1"
+
+[node name="Seat2Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "Seat 2"
+
+[node name="Seat3Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "Seat 3"
+
+[node name="Seat4Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "Seat 4"
+
+[node name="Seat5Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
+layout_mode = 2
+text = "Seat 5"
+
+[node name="HConfig" type="HBoxContainer" parent="VBox/GameCreate"]
+layout_mode = 2
+
+[node name="TurnsLabel" type="Label" parent="VBox/GameCreate/HConfig"]
+layout_mode = 2
+text = "max turns:"
+
+[node name="MaxTurnsSpin" type="SpinBox" parent="VBox/GameCreate/HConfig"]
+layout_mode = 2
+min_value = 1.0
+max_value = 200.0
+value = 25.0
+
+[node name="PeaceLabel" type="Label" parent="VBox/GameCreate/HConfig"]
+layout_mode = 2
+text = "  peace ≥:"
+
+[node name="PeaceSpin" type="SpinBox" parent="VBox/GameCreate/HConfig"]
+layout_mode = 2
+max_value = 99.0
+value = 5.0
+
+[node name="SeedLabel" type="Label" parent="VBox/GameCreate/HConfig"]
+layout_mode = 2
+text = "  seed:"
+
+[node name="SeedSpin" type="SpinBox" parent="VBox/GameCreate/HConfig"]
+layout_mode = 2
+min_value = 0.0
+max_value = 999999.0
+value = 42.0
+
+[node name="HPresets" type="HBoxContainer" parent="VBox/GameCreate"]
+layout_mode = 2
+
+[node name="PresetAllBtn" type="Button" parent="VBox/GameCreate/HPresets"]
+layout_mode = 2
+text = "Preset: 4 agents"
+
+[node name="PresetHumanBtn" type="Button" parent="VBox/GameCreate/HPresets"]
+layout_mode = 2
+text = "Preset: you (P0) + 3 agents"
+
+[node name="CreateBtn" type="Button" parent="VBox/GameCreate/HPresets"]
+layout_mode = 2
+text = "Create game"
 
 [node name="GamesLabel" type="Label" parent="VBox"]
 layout_mode = 2
@@ -96,14 +184,31 @@ value = 0.0
 [node name="HSplit" type="HSplitContainer" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
-split_offset = 360
+split_offset = 380
 
-[node name="OutputLabel" type="RichTextLabel" parent="VBox/HSplit"]
-custom_minimum_size = Vector2(300, 0)
+[node name="LeftPanel" type="VBoxContainer" parent="VBox/HSplit"]
 layout_mode = 2
+
+[node name="OutputLabel" type="RichTextLabel" parent="VBox/HSplit/LeftPanel"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 0
 bbcode_enabled = true
 text = "[i]waiting...[/i]"
-fit_content = false
+fit_content = true
+
+[node name="OrderHeader" type="Label" parent="VBox/HSplit/LeftPanel"]
+layout_mode = 2
+text = "Orders for selected unit:"
+theme_override_font_sizes/font_size = 14
+
+[node name="OrderScroll" type="ScrollContainer" parent="VBox/HSplit/LeftPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="OrderList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/OrderScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="HexMap" type="Control" parent="VBox/HSplit"]
 layout_mode = 2
