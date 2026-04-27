@@ -1,0 +1,29 @@
+; Engine configuration file.
+;
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="foedus-godot"
+config/description="Godot frontend for foedus local play. Talks to a foedus
+play-server (Python, fastapi) over HTTP. Engine + rules stay in Python; this
+project is purely visualization and input."
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

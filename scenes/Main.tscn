@@ -1,0 +1,76 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/GameClient.gd" id="2_client"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_main")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -24.0
+
+[node name="Title" type="Label" parent="VBox"]
+layout_mode = 2
+text = "foedus-godot — local play (v0 text UI)"
+theme_override_font_sizes/font_size = 22
+
+[node name="HBox" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="UrlLabel" type="Label" parent="VBox/HBox"]
+layout_mode = 2
+text = "play-server URL:  "
+
+[node name="UrlEdit" type="LineEdit" parent="VBox/HBox"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+text = "http://127.0.0.1:8090"
+
+[node name="ConnectBtn" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Connect (GET /healthz)"
+
+[node name="StatusLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "not connected"
+
+[node name="CreateBtn" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Create demo game (1 Heuristic + 3 Random)"
+
+[node name="GamesLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "(no active game)"
+
+[node name="HBoxAdvance" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="AdvanceBtn" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Advance one turn"
+
+[node name="AutoBtn" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Auto-advance until human / terminal"
+
+[node name="ViewBtn" type="Button" parent="VBox"]
+layout_mode = 2
+text = "Refresh view"
+
+[node name="OutputLabel" type="RichTextLabel" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+text = "[i]waiting...[/i]"
+fit_content = true
