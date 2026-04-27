@@ -63,6 +63,28 @@ scenes/Main.tscn              v0 root scene (text controls)
 scripts/GameClient.gd         HTTPRequest-based client wrapping the
                               play-server REST API
 scripts/Main.gd               connect/create/advance/view orchestration
+scripts/test_smoke.gd         offline: load scene + scripts, verify nodes
+scripts/test_e2e.gd           online:  drives a real play-server through
+                              healthz → /games → advance(auto)
+```
+
+## Tests
+
+Two headless tests, both runnable via the Godot CLI.
+
+**Smoke (offline, ~1s):** loads scripts and the main scene, verifies the
+expected child nodes exist.
+```sh
+godot --headless --script res://scripts/test_smoke.gd
+```
+
+**E2E (online, ~3s):** start a play-server in another terminal, then run
+the script; it walks healthz → create demo game → auto-advance.
+```sh
+# Terminal 1
+foedus play-server start --port 8090
+# Terminal 2
+godot --headless --script res://scripts/test_e2e.gd
 ```
 
 ## License
