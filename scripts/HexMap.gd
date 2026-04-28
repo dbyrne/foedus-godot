@@ -32,6 +32,13 @@ const SELECT_RING: Color = Color("#ffe25b")
 const HOVER_RING: Color = Color("#ffffff")
 const HOME_MARKER: Color = Color(1, 1, 1, 0.85)
 const SUPPLY_MARKER: Color = Color(1, 1, 1, 0.55)
+# Impassable terrain (engine v0.2: MOUNTAIN, WATER). Both excluded from
+# adjacency on the engine side; here we just need to render them so players
+# can see why neighboring hexes can't be entered.
+const MOUNTAIN_FILL: Color = Color("#6b5a44")
+const MOUNTAIN_GLYPH: Color = Color("#d4bfa3")
+const WATER_FILL: Color = Color("#2c4f74")
+const WATER_GLYPH: Color = Color("#aacde6")
 
 
 static func player_color(p: Variant) -> Color:
@@ -202,14 +209,24 @@ func _draw() -> void:
 		var corners := _hex_corners(px)
 
 		var owner_v: Variant = ownership.get(node_id_str)
-		var fill: Color = (
-			player_color(owner_v) if owner_v != null else NEUTRAL_COLOR
-		)
+		var nt: String = str(node_types.get(node_id_str, "plain"))
+		var fill: Color
+		if nt == "mountain":
+			fill = MOUNTAIN_FILL
+		elif nt == "water":
+			fill = WATER_FILL
+		elif owner_v != null:
+			fill = player_color(owner_v)
+		else:
+			fill = NEUTRAL_COLOR
 		draw_polygon(corners, [fill])
 		draw_polyline(_close_loop(corners), HEX_BORDER, 1.5)
 
-		var nt: String = str(node_types.get(node_id_str, "plain"))
-		if nt == "home":
+		if nt == "mountain":
+			_draw_mountain_glyph(px)
+		elif nt == "water":
+			_draw_water_glyph(px)
+		elif nt == "home":
 			draw_circle(px, HEX_SIZE * zoom * 0.34, HOME_MARKER)
 			draw_arc(px, HEX_SIZE * zoom * 0.34, 0.0, TAU, 28, Color.BLACK, 1.0)
 		elif nt == "supply":
@@ -334,6 +351,47 @@ func _draw_dashed_line(from: Vector2, to: Vector2, color: Color) -> void:
 		var a: Vector2 = src + dir * (i * step)
 		var b: Vector2 = a + dir * dash
 		draw_line(a, b, color, 2.0)
+
+
+func _draw_mountain_glyph(center: Vector2) -> void:
+	# Three triangular peaks across the lower half of the hex. Lighter
+	# fill on a dark warm background gives a clear "ridge" silhouette
+	# even at small zoom levels.
+	var s: float = HEX_SIZE * zoom
+	var base_y: float = s * 0.18
+	var peak_h: float = s * 0.42
+	var spread: float = s * 0.42
+	var peaks: Array = [
+		Vector2(-spread, base_y),
+		Vector2(0.0, base_y),
+		Vector2(spread, base_y),
+	]
+	for peak_base in peaks:
+		var b: Vector2 = center + peak_base
+		var pts := PackedVector2Array([
+			b + Vector2(-s * 0.18, 0),
+			b + Vector2(0, -peak_h),
+			b + Vector2(s * 0.18, 0),
+		])
+		draw_polygon(pts, [MOUNTAIN_GLYPH])
+
+
+func _draw_water_glyph(center: Vector2) -> void:
+	# Two stacked horizontal sine ripples. Each ripple is a polyline of
+	# small segments approximating ~1.5 wave cycles across the hex width.
+	var s: float = HEX_SIZE * zoom
+	var amp: float = s * 0.06
+	var width: float = s * 0.85
+	var segments: int = 16
+	var rows: Array = [-s * 0.10, s * 0.18]
+	for row_y in rows:
+		var pts := PackedVector2Array()
+		for i in range(segments + 1):
+			var t: float = float(i) / float(segments)
+			var x: float = -width * 0.5 + t * width
+			var y: float = sin(t * TAU * 1.5) * amp
+			pts.append(center + Vector2(x, row_y + y))
+		draw_polyline(pts, WATER_GLYPH, 2.0)
 
 
 func _draw_placeholder() -> void:
