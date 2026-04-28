@@ -10,7 +10,7 @@ func _init() -> void:
 	print("--- foedus-godot smoke test ---")
 
 	# Load all class_name'd scripts first so their globals register before
-	# Main.gd parses (which references both GameClient and HexMap).
+	# Main.gd parses (which references GameClient, HexMap, and SoundManager).
 	var GameClientScript := load("res://scripts/GameClient.gd")
 	if GameClientScript == null:
 		print("FAIL: GameClient.gd did not load")
@@ -24,6 +24,13 @@ func _init() -> void:
 		quit(1)
 		return
 	print("ok: HexMap.gd loaded")
+
+	var SoundManagerScript := load("res://scripts/SoundManager.gd")
+	if SoundManagerScript == null:
+		print("FAIL: SoundManager.gd did not load")
+		quit(1)
+		return
+	print("ok: SoundManager.gd loaded")
 
 	var MainScript := load("res://scripts/Main.gd")
 	if MainScript == null:
@@ -69,6 +76,9 @@ func _init() -> void:
 		"VBox/HSplit/LeftPanel/ScoreboardList",
 		"VBox/HSplit/HexMap",
 		"VBox/GameOverBanner/GameOverLabel",
+		"VBox/ViewSelect/ViewPlayerSpin",
+		"VBox/ViewSelect/ReplayTurnSpin",
+		"VBox/ViewSelect/ReplayLiveBtn",
 	]
 	for p in required_paths:
 		if root.get_node_or_null(p) == null:

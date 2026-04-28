@@ -37,6 +37,9 @@ const SEAT_LABELS: Array[String] = [
 @onready var reset_btn: Button = $VBox/HBoxButtons/ResetBtn
 @onready var url_edit: LineEdit = $VBox/HBox/UrlEdit
 @onready var view_player_spin: SpinBox = $VBox/ViewSelect/ViewPlayerSpin
+@onready var replay_turn_spin: SpinBox = $VBox/ViewSelect/ReplayTurnSpin
+@onready var replay_live_btn: Button = $VBox/ViewSelect/ReplayLiveBtn
+@onready var replay_status: Label = $VBox/ViewSelect/ReplayStatus
 @onready var num_players_spin: SpinBox = $VBox/GameCreate/HSeats/NumPlayersSpin
 @onready var max_turns_spin: SpinBox = $VBox/GameCreate/HConfig/MaxTurnsSpin
 @onready var peace_spin: SpinBox = $VBox/GameCreate/HConfig/PeaceSpin
@@ -50,10 +53,16 @@ const SEAT_LABELS: Array[String] = [
 
 var seat_options: Array[OptionButton] = []
 var client: GameClient
+var sound: SoundManager
 var current_game_id: String = ""
 var current_view: Dictionary = {}
 var selected_unit_id: int = -1
 var pending_orders: Dictionary = {}
+var _was_terminal: bool = false
+# Replay state. `current_live_turn` is the server's authoritative latest;
+# `in_replay` is true when the user is viewing a past snapshot.
+var in_replay: bool = false
+var current_live_turn: int = 0
 
 
 func _ready() -> void:
@@ -61,6 +70,9 @@ func _ready() -> void:
 	add_child(client)
 	client.response.connect(_on_response)
 	client.failure.connect(_on_failure)
+
+	sound = SoundManager.new()
+	add_child(sound)
 
 	for i in range(6):
 		var opt: OptionButton = get_node("VBox/GameCreate/HSeats/Seat%dOpt" % i)
@@ -81,6 +93,8 @@ func _ready() -> void:
 	submit_btn.pressed.connect(_on_submit_pressed)
 	reset_btn.pressed.connect(_on_reset_pressed)
 	view_player_spin.value_changed.connect(_on_view_player_changed)
+	replay_turn_spin.value_changed.connect(_on_replay_turn_changed)
+	replay_live_btn.pressed.connect(_on_replay_live_pressed)
 
 	hex_map.unit_clicked.connect(_on_unit_clicked)
 	hex_map.hex_clicked.connect(_on_hex_clicked)
@@ -123,6 +137,7 @@ func _on_preset_human_pressed() -> void:
 
 
 func _on_create_pressed() -> void:
+	sound.click()
 	var n: int = int(num_players_spin.value)
 	var seats: Array = []
 	for i in range(n):
@@ -165,12 +180,14 @@ func _on_connect_pressed() -> void:
 func _on_advance_pressed() -> void:
 	if current_game_id.is_empty():
 		return
+	sound.advance()
 	client.advance(current_game_id, false)
 
 
 func _on_auto_pressed() -> void:
 	if current_game_id.is_empty():
 		return
+	sound.advance()
 	client.advance(current_game_id, true)
 
 
@@ -187,15 +204,57 @@ func _on_view_player_changed(_v: float) -> void:
 	_refresh_view()
 
 
+func _on_replay_turn_changed(v: float) -> void:
+	if current_game_id.is_empty():
+		return
+	var turn: int = int(v)
+	if turn >= current_live_turn:
+		# Snap back to live.
+		in_replay = false
+		_refresh_view()
+	else:
+		in_replay = true
+		client.history_view(current_game_id, turn, int(view_player_spin.value))
+
+
+func _on_replay_live_pressed() -> void:
+	in_replay = false
+	replay_turn_spin.set_value_no_signal(current_live_turn)
+	_refresh_view()
+
+
 func _refresh_view() -> void:
 	if current_game_id.is_empty():
 		return
-	client.view(current_game_id, int(view_player_spin.value))
+	if in_replay:
+		client.history_view(current_game_id,
+				int(replay_turn_spin.value),
+				int(view_player_spin.value))
+	else:
+		client.view(current_game_id, int(view_player_spin.value))
+
+
+func _update_replay_ui() -> void:
+	if in_replay:
+		replay_status.text = "  [REPLAY  turn %d / live %d]" % [
+			int(replay_turn_spin.value), current_live_turn
+		]
+		replay_status.add_theme_color_override("font_color", Color(1.0, 0.7, 0.4))
+		submit_btn.disabled = true
+		advance_btn.disabled = true
+		auto_btn.disabled = true
+	else:
+		replay_status.text = "  (live)"
+		replay_status.add_theme_color_override("font_color", Color(0.55, 0.78, 0.55))
+		submit_btn.disabled = false
+		advance_btn.disabled = false
+		auto_btn.disabled = false
 
 
 func _on_submit_pressed() -> void:
 	if current_game_id.is_empty() or current_view.is_empty():
 		return
+	sound.submit()
 	var orders: Dictionary = {}
 	for u in current_view.get("your_units", []):
 		var uid_str: String = str(u["id"])
@@ -492,10 +551,35 @@ func _apply_view(view: Variant) -> void:
 	_clear_order_list()
 	_populate_scoreboard(view)
 	_render_text(view)
-	if view.get("is_terminal", false):
+	# Sync replay tracking with server's view.
+	in_replay = bool(view.get("is_replay", false))
+	var server_live_turn: int = int(view.get("current_turn",
+			view.get("turn", 0)))
+	if server_live_turn > current_live_turn or not in_replay:
+		current_live_turn = server_live_turn
+	replay_turn_spin.max_value = max(0.0, float(current_live_turn))
+	replay_turn_spin.set_value_no_signal(int(view.get("turn", 0)))
+	_update_replay_ui()
+	var terminal_now: bool = view.get("is_terminal", false)
+	if terminal_now:
 		_show_game_over(view)
+		# Play game-over chime once on transition into terminal.
+		if not _was_terminal:
+			var you_won: bool = false
+			var winner: Variant = view.get("winner", null)
+			var winners: Array = view.get("winners", [])
+			var you: int = view.get("you", -1)
+			if winner != null and int(winner) == you:
+				you_won = true
+			elif you in winners:
+				you_won = true
+			if you_won:
+				sound.game_over_won()
+			else:
+				sound.game_over_lost()
 	else:
 		game_over_banner.visible = false
+	_was_terminal = terminal_now
 
 
 func _render_text(view: Dictionary) -> void:

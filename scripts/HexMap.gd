@@ -47,6 +47,9 @@ signal hex_clicked(node_id: int)
 signal unit_clicked(unit_id: int, owner: int)
 
 const ANIMATION_DURATION_MS: int = 500
+const ZOOM_MIN: float = 0.4
+const ZOOM_MAX: float = 2.5
+const ZOOM_STEP: float = 1.10
 
 var view_data: Dictionary = {}
 var selected_unit_id: int = -1
@@ -56,6 +59,12 @@ var pending_orders: Dictionary = {}
 # In-flight movement animations after a turn resolves.
 # str(unit_id) -> {from: Vector2(q,r), to: Vector2(q,r), started_at: int(ms)}
 var _anim_starts: Dictionary = {}
+
+# Zoom + pan state. All hex math goes through _axial_to_pixel /
+# _pixel_to_axial so the same offsets apply to drawing AND hit-testing.
+var zoom: float = 1.0
+var pan_offset: Vector2 = Vector2.ZERO
+var _panning: bool = false
 
 # Cache: node_id (int) -> Vector2(q, r). Rebuilt on update_view.
 var _coords_by_node: Dictionary = {}
@@ -75,8 +84,19 @@ func _ready() -> void:
 func update_view(view: Dictionary) -> void:
 	# Diff units against previous view to start movement animations.
 	_anim_starts = _compute_movement_anims(view_data, view)
+	# When the game changes (different game_id), recenter.
+	var prev_game: String = str(view_data.get("game_id", ""))
+	var new_game: String = str(view.get("game_id", ""))
+	if prev_game != new_game:
+		reset_view_transform()
 	view_data = view
 	_rebuild_caches()
+	queue_redraw()
+
+
+func reset_view_transform() -> void:
+	zoom = 1.0
+	pan_offset = Vector2.ZERO
 	queue_redraw()
 
 
@@ -190,13 +210,13 @@ func _draw() -> void:
 
 		var nt: String = str(node_types.get(node_id_str, "plain"))
 		if nt == "home":
-			draw_circle(px, HEX_SIZE * 0.34, HOME_MARKER)
-			draw_arc(px, HEX_SIZE * 0.34, 0.0, TAU, 28, Color.BLACK, 1.0)
+			draw_circle(px, HEX_SIZE * zoom * 0.34, HOME_MARKER)
+			draw_arc(px, HEX_SIZE * zoom * 0.34, 0.0, TAU, 28, Color.BLACK, 1.0)
 		elif nt == "supply":
-			draw_circle(px, HEX_SIZE * 0.20, SUPPLY_MARKER)
+			draw_circle(px, HEX_SIZE * zoom * 0.20, SUPPLY_MARKER)
 
 		# Node id label, top-left of hex
-		draw_string(font, px + Vector2(-HEX_SIZE * 0.55, -HEX_SIZE * 0.55),
+		draw_string(font, px + Vector2(-HEX_SIZE * zoom * 0.55, -HEX_SIZE * zoom * 0.55),
 				node_id_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, NODE_LABEL_COLOR)
 
 	# Hover highlight (drawn after hexes, before units)
@@ -231,20 +251,20 @@ func _draw() -> void:
 		var ucolor: Color = player_color(u["owner"])
 
 		# Slightly larger, with white outline + dark inner ring for contrast.
-		draw_circle(px2, HEX_SIZE * 0.34, ucolor)
-		draw_arc(px2, HEX_SIZE * 0.34, 0.0, TAU, 32, Color.WHITE, 2.0)
-		draw_arc(px2, HEX_SIZE * 0.34, 0.0, TAU, 32, Color(0, 0, 0, 0.4), 1.0)
+		draw_circle(px2, HEX_SIZE * zoom * 0.34, ucolor)
+		draw_arc(px2, HEX_SIZE * zoom * 0.34, 0.0, TAU, 32, Color.WHITE, 2.0)
+		draw_arc(px2, HEX_SIZE * zoom * 0.34, 0.0, TAU, 32, Color(0, 0, 0, 0.4), 1.0)
 		# Unit id text — centered, white with black shadow for readability.
 		var label: String = "u%d" % int(u["id"])
-		var tx: float = -HEX_SIZE * 0.18
-		var ty: float = HEX_SIZE * 0.13
+		var tx: float = -HEX_SIZE * zoom * 0.18
+		var ty: float = HEX_SIZE * zoom * 0.13
 		draw_string(font, px2 + Vector2(tx + 1, ty + 1),
 				label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0, 0, 0, 0.7))
 		draw_string(font, px2 + Vector2(tx, ty),
 				label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
 
 		if int(u["id"]) == selected_unit_id:
-			draw_arc(px2, HEX_SIZE * 0.45, 0.0, TAU, 36, SELECT_RING, 3.5)
+			draw_arc(px2, HEX_SIZE * zoom * 0.45, 0.0, TAU, 36, SELECT_RING, 3.5)
 
 	# Pending-order overlays.
 	for unit_id_str in pending_orders:
@@ -267,7 +287,7 @@ func _draw() -> void:
 			var dest_px: Vector2 = _axial_to_pixel(dest_qr[0], dest_qr[1], origin)
 			_draw_arrow(src_px, dest_px, SELECT_RING)
 		elif t == "Hold":
-			draw_arc(src_px, HEX_SIZE * 0.55, 0.0, TAU, 36, SELECT_RING, 2.0)
+			draw_arc(src_px, HEX_SIZE * zoom * 0.55, 0.0, TAU, 36, SELECT_RING, 2.0)
 		elif t == "SupportHold":
 			# Line from supporter to target unit's hex.
 			var target_uid: int = int(order.get("target", -1))
@@ -285,13 +305,13 @@ func _draw() -> void:
 			var tgt_qr: Array = coords[str(tgt_dest_id)]
 			var tgt_px: Vector2 = _axial_to_pixel(tgt_qr[0], tgt_qr[1], origin)
 			_draw_dashed_line(src_px, tgt_px, SELECT_RING)
-			draw_arc(src_px, HEX_SIZE * 0.55, 0.0, TAU, 36, SELECT_RING, 1.5)
+			draw_arc(src_px, HEX_SIZE * zoom * 0.55, 0.0, TAU, 36, SELECT_RING, 1.5)
 
 
 func _draw_arrow(from: Vector2, to: Vector2, color: Color) -> void:
 	var dir: Vector2 = (to - from).normalized()
-	var src: Vector2 = from + dir * (HEX_SIZE * 0.36)
-	var dst: Vector2 = to - dir * (HEX_SIZE * 0.36)
+	var src: Vector2 = from + dir * (HEX_SIZE * zoom * 0.36)
+	var dst: Vector2 = to - dir * (HEX_SIZE * zoom * 0.36)
 	draw_line(src, dst, color, 3.0)
 	var perp: Vector2 = Vector2(-dir.y, dir.x)
 	var head_a: Vector2 = dst - dir * 11.0 + perp * 6.0
@@ -303,8 +323,8 @@ func _draw_arrow(from: Vector2, to: Vector2, color: Color) -> void:
 func _draw_dashed_line(from: Vector2, to: Vector2, color: Color) -> void:
 	var dir: Vector2 = (to - from).normalized()
 	var distance: float = from.distance_to(to)
-	var src: Vector2 = from + dir * (HEX_SIZE * 0.36)
-	var dst: Vector2 = to - dir * (HEX_SIZE * 0.36)
+	var src: Vector2 = from + dir * (HEX_SIZE * zoom * 0.36)
+	var dst: Vector2 = to - dir * (HEX_SIZE * zoom * 0.36)
 	var avail: float = src.distance_to(dst)
 	var dash: float = 7.0
 	var gap: float = 5.0
@@ -327,26 +347,60 @@ func _draw_placeholder() -> void:
 
 
 func _gui_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
-		return
-	var mb: InputEventMouseButton = event
-	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
-		return
-	if view_data.is_empty():
-		return
-	var origin: Vector2 = size / 2.0
-	var local: Vector2 = mb.position - origin
-	var qr: Vector2i = _pixel_to_axial(local)
-	var node_id: int = _node_at_qr(qr.x, qr.y)
-	if node_id < 0:
+	# --- mouse wheel zoom (centered on cursor) ---
+	if event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom_at(mb.position, ZOOM_STEP)
+			return
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom_at(mb.position, 1.0 / ZOOM_STEP)
+			return
+		# Middle-button (or right-button) drag panning.
+		if mb.button_index == MOUSE_BUTTON_MIDDLE \
+				or mb.button_index == MOUSE_BUTTON_RIGHT:
+			_panning = mb.pressed
+			return
+		# Left-click hex/unit selection (existing behavior).
+		if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if view_data.is_empty():
+			return
+		var origin: Vector2 = size / 2.0
+		var local: Vector2 = mb.position - origin
+		var qr: Vector2i = _pixel_to_axial(local)
+		var node_id: int = _node_at_qr(qr.x, qr.y)
+		if node_id < 0:
+			return
+
+		var unit_id: int = _unit_at_node(node_id)
+		if unit_id >= 0:
+			var u: Dictionary = view_data["state"]["units"][str(unit_id)]
+			unit_clicked.emit(unit_id, int(u["owner"]))
+		else:
+			hex_clicked.emit(node_id)
 		return
 
-	var unit_id: int = _unit_at_node(node_id)
-	if unit_id >= 0:
-		var u: Dictionary = view_data["state"]["units"][str(unit_id)]
-		unit_clicked.emit(unit_id, int(u["owner"]))
-	else:
-		hex_clicked.emit(node_id)
+	# --- panning while held ---
+	if event is InputEventMouseMotion and _panning:
+		var mm: InputEventMouseMotion = event
+		pan_offset += mm.relative
+		queue_redraw()
+
+
+func _zoom_at(focus_pos: Vector2, factor: float) -> void:
+	# Keep `focus_pos` (in widget coords) stable across the zoom by adjusting
+	# pan_offset. Forward transform: pixel = origin + pan + zoom * hex_offset.
+	var origin: Vector2 = size / 2.0
+	var hex_off: Vector2 = (focus_pos - origin - pan_offset)
+	var new_zoom: float = clampf(zoom * factor, ZOOM_MIN, ZOOM_MAX)
+	if is_equal_approx(new_zoom, zoom):
+		return
+	# After zoom change, hex_off scales by (new_zoom / zoom). Cancel that
+	# scaling on focus_pos by adjusting pan.
+	pan_offset += hex_off - hex_off * (new_zoom / zoom)
+	zoom = new_zoom
+	queue_redraw()
 
 
 # --- helpers ---------------------------------------------------------------
@@ -366,14 +420,18 @@ func _rebuild_caches() -> void:
 
 
 func _axial_to_pixel(q: float, r: float, origin: Vector2) -> Vector2:
-	var x: float = SQRT3 * (q + r / 2.0) * HEX_SIZE
-	var y: float = 1.5 * r * HEX_SIZE
-	return origin + Vector2(x, y)
+	var s: float = HEX_SIZE * zoom
+	var x: float = SQRT3 * (q + r / 2.0) * s
+	var y: float = 1.5 * r * s
+	return origin + pan_offset + Vector2(x, y)
 
 
 func _pixel_to_axial(local: Vector2) -> Vector2i:
-	var q_frac: float = (SQRT3 / 3.0 * local.x - 1.0 / 3.0 * local.y) / HEX_SIZE
-	var r_frac: float = (2.0 / 3.0 * local.y) / HEX_SIZE
+	# `local` is widget-coords-minus-origin; account for pan + zoom.
+	var s: float = HEX_SIZE * zoom
+	var p: Vector2 = local - pan_offset
+	var q_frac: float = (SQRT3 / 3.0 * p.x - 1.0 / 3.0 * p.y) / s
+	var r_frac: float = (2.0 / 3.0 * p.y) / s
 	return _hex_round(q_frac, r_frac)
 
 
@@ -394,9 +452,10 @@ func _hex_round(q: float, r: float) -> Vector2i:
 
 func _hex_corners(center: Vector2) -> PackedVector2Array:
 	var pts := PackedVector2Array()
+	var s: float = HEX_SIZE * zoom
 	for i in range(6):
 		var ang: float = (i + 0.5) * PI / 3.0
-		pts.append(center + Vector2(HEX_SIZE * cos(ang), HEX_SIZE * sin(ang)))
+		pts.append(center + Vector2(s * cos(ang), s * sin(ang)))
 	return pts
 
 

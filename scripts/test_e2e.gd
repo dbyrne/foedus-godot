@@ -72,10 +72,31 @@ func _on_response(endpoint: String, data: Variant) -> void:
 	elif step == 2 and endpoint.contains("/advance"):
 		if typeof(data) == TYPE_DICTIONARY and data.get("is_terminal", false):
 			print("  game terminal at turn %d" % data.get("turn", -1))
+			step = 3
+			print("step 3: GET /history")
+			client.history(game_id)
+		else:
+			print("FAIL: not terminal after auto-advance: %s" % str(data))
+			_finish(1)
+	elif step == 3 and endpoint.contains("/history") \
+			and not endpoint.contains("/view/"):
+		var snapshots: Array = data.get("snapshots", [])
+		if snapshots.is_empty():
+			print("FAIL: empty history")
+			_finish(1)
+			return
+		print("  history has %d snapshots; checking turn 1 view" % snapshots.size())
+		step = 4
+		client.history_view(game_id, 1, 0)
+	elif step == 4 and endpoint.contains("/history/") \
+			and endpoint.contains("/view/"):
+		if typeof(data) == TYPE_DICTIONARY and data.get("is_replay", false) \
+				and int(data.get("turn", -1)) == 1:
+			print("  past view at turn 1 ok (is_replay=true)")
 			print("--- ALL OK ---")
 			_finish(0)
 		else:
-			print("FAIL: not terminal after auto-advance: %s" % str(data))
+			print("FAIL: replay view did not return is_replay/turn=1: %s" % str(data))
 			_finish(1)
 
 

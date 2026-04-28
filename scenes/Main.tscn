@@ -189,6 +189,28 @@ layout_mode = 2
 max_value = 5.0
 value = 0.0
 
+[node name="ReplaySep" type="VSeparator" parent="VBox/ViewSelect"]
+layout_mode = 2
+
+[node name="ReplayTurnLabel" type="Label" parent="VBox/ViewSelect"]
+layout_mode = 2
+text = "  view turn:"
+
+[node name="ReplayTurnSpin" type="SpinBox" parent="VBox/ViewSelect"]
+layout_mode = 2
+min_value = 0.0
+max_value = 0.0
+value = 0.0
+
+[node name="ReplayLiveBtn" type="Button" parent="VBox/ViewSelect"]
+layout_mode = 2
+text = "↪ Live"
+
+[node name="ReplayStatus" type="Label" parent="VBox/ViewSelect"]
+layout_mode = 2
+text = "  (live)"
+theme_override_colors/font_color = Color(0.55, 0.78, 0.55, 1)
+
 [node name="HSplit" type="HSplitContainer" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3

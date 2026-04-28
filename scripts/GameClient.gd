@@ -96,3 +96,11 @@ func advance(game_id: String, auto: bool = false) -> void:
 
 func delete_game(game_id: String) -> void:
 	delete_request("/games/%s" % game_id)
+
+
+func history(game_id: String) -> void:
+	get_request("/games/%s/history" % game_id)
+
+
+func history_view(game_id: String, turn: int, player: int) -> void:
+	get_request("/games/%s/history/%d/view/%d" % [game_id, turn, player])
