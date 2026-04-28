@@ -17,14 +17,14 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 16.0
-offset_top = 16.0
+offset_top = 12.0
 offset_right = -16.0
-offset_bottom = -16.0
+offset_bottom = -12.0
 
 [node name="Title" type="Label" parent="VBox"]
 layout_mode = 2
-text = "foedus-godot — local play"
-theme_override_font_sizes/font_size = 22
+text = "foedus — local play"
+theme_override_font_sizes/font_size = 24
 
 [node name="HBox" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -46,14 +46,27 @@ text = "Connect"
 layout_mode = 2
 text = "not connected"
 autowrap_mode = 3
+theme_override_colors/font_color = Color(0.78, 0.82, 0.92, 1)
+
+[node name="GameOverBanner" type="PanelContainer" parent="VBox"]
+visible = false
+layout_mode = 2
+
+[node name="GameOverLabel" type="Label" parent="VBox/GameOverBanner"]
+layout_mode = 2
+text = "GAME OVER"
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.5, 0.86, 0.5, 1)
+theme_override_font_sizes/font_size = 18
 
 [node name="GameCreate" type="VBoxContainer" parent="VBox"]
 layout_mode = 2
 
 [node name="GameCreateLabel" type="Label" parent="VBox/GameCreate"]
 layout_mode = 2
-text = "Game setup:"
+text = "Game setup"
 theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="HSeats" type="HBoxContainer" parent="VBox/GameCreate"]
 layout_mode = 2
@@ -73,27 +86,21 @@ layout_mode = 2
 
 [node name="Seat0Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
 layout_mode = 2
-text = "Seat 0"
 
 [node name="Seat1Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
 layout_mode = 2
-text = "Seat 1"
 
 [node name="Seat2Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
 layout_mode = 2
-text = "Seat 2"
 
 [node name="Seat3Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
 layout_mode = 2
-text = "Seat 3"
 
 [node name="Seat4Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
 layout_mode = 2
-text = "Seat 4"
 
 [node name="Seat5Opt" type="OptionButton" parent="VBox/GameCreate/HSeats"]
 layout_mode = 2
-text = "Seat 5"
 
 [node name="HConfig" type="HBoxContainer" parent="VBox/GameCreate"]
 layout_mode = 2
@@ -145,6 +152,7 @@ text = "Create game"
 [node name="GamesLabel" type="Label" parent="VBox"]
 layout_mode = 2
 text = "(no active game)"
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
 
 [node name="HBoxButtons" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -189,8 +197,17 @@ split_offset = 380
 [node name="LeftPanel" type="VBoxContainer" parent="VBox/HSplit"]
 layout_mode = 2
 
+[node name="ScoreboardHeader" type="Label" parent="VBox/HSplit/LeftPanel"]
+layout_mode = 2
+text = "Scoreboard"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
+
+[node name="ScoreboardList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel"]
+layout_mode = 2
+
 [node name="OutputLabel" type="RichTextLabel" parent="VBox/HSplit/LeftPanel"]
-custom_minimum_size = Vector2(0, 180)
+custom_minimum_size = Vector2(0, 130)
 layout_mode = 2
 size_flags_vertical = 0
 bbcode_enabled = true
@@ -199,8 +216,9 @@ fit_content = true
 
 [node name="OrderHeader" type="Label" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2
-text = "Orders for selected unit:"
+text = "Orders for selected unit"
 theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="OrderScroll" type="ScrollContainer" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2

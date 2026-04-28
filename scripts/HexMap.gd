@@ -6,8 +6,9 @@
 ## puts circles for units.
 ##
 ## Click handling: pixel→axial conversion identifies the clicked node; emits
-## `unit_clicked` if a unit is on it (your unit or theirs), else `hex_clicked`
-## with the bare node id. Main.gd decides what to do (select-then-target).
+## `unit_clicked` if a unit is on it, else `hex_clicked` with the bare node id.
+## Mouse hovering over a hex draws a highlight; hovering over a unit emits
+## `unit_hovered` so the parent can show details.
 class_name HexMap
 extends Control
 
@@ -24,15 +25,30 @@ const PLAYER_COLORS: Array[Color] = [
 	Color("#dd8e3b"),  # 5  orange
 ]
 const NEUTRAL_COLOR: Color = Color("#2a2a2a")
-const HEX_BORDER: Color = Color("#888")
-const TEXT_COLOR: Color = Color("#bbb")
+const HEX_BORDER: Color = Color("#666")
+const TEXT_COLOR: Color = Color("#ddd")
+const NODE_LABEL_COLOR: Color = Color("#999")
 const SELECT_RING: Color = Color("#ffe25b")
+const HOVER_RING: Color = Color("#ffffff")
+const HOME_MARKER: Color = Color(1, 1, 1, 0.85)
+const SUPPLY_MARKER: Color = Color(1, 1, 1, 0.55)
+
+
+static func player_color(p: Variant) -> Color:
+	if p == null:
+		return NEUTRAL_COLOR
+	var pid: int = int(p)
+	if pid < 0:
+		return NEUTRAL_COLOR
+	return PLAYER_COLORS[pid % PLAYER_COLORS.size()]
+
 
 signal hex_clicked(node_id: int)
 signal unit_clicked(unit_id: int, owner: int)
 
 var view_data: Dictionary = {}
 var selected_unit_id: int = -1
+var hover_node_id: int = -1
 # Local pending orders awaiting submit; str(unit_id) -> order dict.
 var pending_orders: Dictionary = {}
 
@@ -45,6 +61,7 @@ var _node_by_qr: Dictionary = {}
 func _ready() -> void:
 	custom_minimum_size = Vector2(640, 480)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	set_process(true)
 
 
 # --- public ----------------------------------------------------------------
@@ -72,6 +89,27 @@ func set_pending_orders(orders: Dictionary) -> void:
 	queue_redraw()
 
 
+# --- hover tracking --------------------------------------------------------
+
+
+func _process(_delta: float) -> void:
+	if view_data.is_empty():
+		if hover_node_id != -1:
+			hover_node_id = -1
+			queue_redraw()
+		return
+	var local: Vector2 = get_local_mouse_position()
+	var inside: bool = Rect2(Vector2.ZERO, size).has_point(local)
+	var new_hover: int = -1
+	if inside:
+		var origin: Vector2 = size / 2.0
+		var qr: Vector2i = _pixel_to_axial(local - origin)
+		new_hover = _node_at_qr(qr.x, qr.y)
+	if new_hover != hover_node_id:
+		hover_node_id = new_hover
+		queue_redraw()
+
+
 # --- drawing ---------------------------------------------------------------
 
 
@@ -97,20 +135,28 @@ func _draw() -> void:
 
 		var owner_v: Variant = ownership.get(node_id_str)
 		var fill: Color = (
-			_player_color(owner_v) if owner_v != null else NEUTRAL_COLOR
+			player_color(owner_v) if owner_v != null else NEUTRAL_COLOR
 		)
 		draw_polygon(corners, [fill])
-		draw_polyline(_close_loop(corners), HEX_BORDER, 1.0)
+		draw_polyline(_close_loop(corners), HEX_BORDER, 1.5)
 
 		var nt: String = str(node_types.get(node_id_str, "plain"))
 		if nt == "home":
-			draw_circle(px, HEX_SIZE * 0.32, Color(1, 1, 1, 0.85))
+			draw_circle(px, HEX_SIZE * 0.34, HOME_MARKER)
+			draw_arc(px, HEX_SIZE * 0.34, 0.0, TAU, 28, Color.BLACK, 1.0)
 		elif nt == "supply":
-			draw_circle(px, HEX_SIZE * 0.18, Color(1, 1, 1, 0.85))
+			draw_circle(px, HEX_SIZE * 0.20, SUPPLY_MARKER)
 
 		# Node id label, top-left of hex
 		draw_string(font, px + Vector2(-HEX_SIZE * 0.55, -HEX_SIZE * 0.55),
-				node_id_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, TEXT_COLOR)
+				node_id_str, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, NODE_LABEL_COLOR)
+
+	# Hover highlight (drawn after hexes, before units)
+	if hover_node_id >= 0 and _coords_by_node.has(hover_node_id):
+		var hqr: Vector2 = _coords_by_node[hover_node_id]
+		var hpx: Vector2 = _axial_to_pixel(hqr.x, hqr.y, origin)
+		var hcorners := _hex_corners(hpx)
+		draw_polyline(_close_loop(hcorners), HOVER_RING, 2.5)
 
 	# Units (drawn after hexes so they sit on top)
 	for unit_id_str in units:
@@ -120,19 +166,25 @@ func _draw() -> void:
 			continue
 		var qr2: Array = coords[loc_str]
 		var px2: Vector2 = _axial_to_pixel(qr2[0], qr2[1], origin)
-		var ucolor: Color = _player_color(u["owner"])
+		var ucolor: Color = player_color(u["owner"])
 
-		draw_circle(px2, HEX_SIZE * 0.30, ucolor)
-		draw_arc(px2, HEX_SIZE * 0.30, 0.0, TAU, 28, Color.BLACK, 1.5)
-		draw_string(font, px2 + Vector2(-HEX_SIZE * 0.18, HEX_SIZE * 0.10),
-				"u%d" % int(u["id"]),
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.BLACK)
+		# Slightly larger, with white outline + dark inner ring for contrast.
+		draw_circle(px2, HEX_SIZE * 0.34, ucolor)
+		draw_arc(px2, HEX_SIZE * 0.34, 0.0, TAU, 32, Color.WHITE, 2.0)
+		draw_arc(px2, HEX_SIZE * 0.34, 0.0, TAU, 32, Color(0, 0, 0, 0.4), 1.0)
+		# Unit id text — centered, white with black shadow for readability.
+		var label: String = "u%d" % int(u["id"])
+		var tx: float = -HEX_SIZE * 0.18
+		var ty: float = HEX_SIZE * 0.13
+		draw_string(font, px2 + Vector2(tx + 1, ty + 1),
+				label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(0, 0, 0, 0.7))
+		draw_string(font, px2 + Vector2(tx, ty),
+				label, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color.WHITE)
 
 		if int(u["id"]) == selected_unit_id:
-			draw_arc(px2, HEX_SIZE * 0.42, 0.0, TAU, 36, SELECT_RING, 3.0)
+			draw_arc(px2, HEX_SIZE * 0.45, 0.0, TAU, 36, SELECT_RING, 3.5)
 
-	# Pending-order overlays: a thin line from source to destination per
-	# pending Move; a small ring on the source for pending Hold.
+	# Pending-order overlays.
 	for unit_id_str in pending_orders:
 		var order: Dictionary = pending_orders[unit_id_str]
 		var u_data: Dictionary = units.get(unit_id_str, {})
@@ -153,27 +205,60 @@ func _draw() -> void:
 			var dest_px: Vector2 = _axial_to_pixel(dest_qr[0], dest_qr[1], origin)
 			_draw_arrow(src_px, dest_px, SELECT_RING)
 		elif t == "Hold":
-			draw_arc(src_px, HEX_SIZE * 0.50, 0.0, TAU, 36, SELECT_RING, 2.0)
+			draw_arc(src_px, HEX_SIZE * 0.55, 0.0, TAU, 36, SELECT_RING, 2.0)
+		elif t == "SupportHold":
+			# Line from supporter to target unit's hex.
+			var target_uid: int = int(order.get("target", -1))
+			var target_data: Dictionary = units.get(str(target_uid), {})
+			if target_data.is_empty():
+				continue
+			var target_qr: Array = coords[str(target_data["location"])]
+			var target_px: Vector2 = _axial_to_pixel(target_qr[0], target_qr[1], origin)
+			_draw_dashed_line(src_px, target_px, SELECT_RING)
+		elif t == "SupportMove":
+			# Line from supporter to target_dest, marked at the supporter side.
+			var tgt_dest_id: int = int(order.get("target_dest", -1))
+			if not coords.has(str(tgt_dest_id)):
+				continue
+			var tgt_qr: Array = coords[str(tgt_dest_id)]
+			var tgt_px: Vector2 = _axial_to_pixel(tgt_qr[0], tgt_qr[1], origin)
+			_draw_dashed_line(src_px, tgt_px, SELECT_RING)
+			draw_arc(src_px, HEX_SIZE * 0.55, 0.0, TAU, 36, SELECT_RING, 1.5)
 
 
 func _draw_arrow(from: Vector2, to: Vector2, color: Color) -> void:
-	# Pull endpoints in a bit so arrows don't collide with unit circles.
 	var dir: Vector2 = (to - from).normalized()
-	var src: Vector2 = from + dir * (HEX_SIZE * 0.32)
-	var dst: Vector2 = to - dir * (HEX_SIZE * 0.32)
-	draw_line(src, dst, color, 2.5)
-	# Arrowhead.
+	var src: Vector2 = from + dir * (HEX_SIZE * 0.36)
+	var dst: Vector2 = to - dir * (HEX_SIZE * 0.36)
+	draw_line(src, dst, color, 3.0)
 	var perp: Vector2 = Vector2(-dir.y, dir.x)
-	var head_a: Vector2 = dst - dir * 10.0 + perp * 5.0
-	var head_b: Vector2 = dst - dir * 10.0 - perp * 5.0
-	draw_line(dst, head_a, color, 2.5)
-	draw_line(dst, head_b, color, 2.5)
+	var head_a: Vector2 = dst - dir * 11.0 + perp * 6.0
+	var head_b: Vector2 = dst - dir * 11.0 - perp * 6.0
+	draw_line(dst, head_a, color, 3.0)
+	draw_line(dst, head_b, color, 3.0)
+
+
+func _draw_dashed_line(from: Vector2, to: Vector2, color: Color) -> void:
+	var dir: Vector2 = (to - from).normalized()
+	var distance: float = from.distance_to(to)
+	var src: Vector2 = from + dir * (HEX_SIZE * 0.36)
+	var dst: Vector2 = to - dir * (HEX_SIZE * 0.36)
+	var avail: float = src.distance_to(dst)
+	var dash: float = 7.0
+	var gap: float = 5.0
+	var step: float = dash + gap
+	var n: int = int(avail / step)
+	for i in range(n):
+		var a: Vector2 = src + dir * (i * step)
+		var b: Vector2 = a + dir * dash
+		draw_line(a, b, color, 2.0)
 
 
 func _draw_placeholder() -> void:
 	var font: Font = ThemeDB.fallback_font
-	draw_string(font, size / 2.0 - Vector2(40, 0),
-			"(no game)", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.GRAY)
+	var msg := "(no game — use the form above to create one)"
+	draw_string(font, size / 2.0 - Vector2(msg.length() * 4.0, 0),
+			msg, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.GRAY)
 
 
 # --- input -----------------------------------------------------------------
@@ -218,24 +303,13 @@ func _rebuild_caches() -> void:
 		_node_by_qr[Vector2i(qr[0], qr[1])] = nid
 
 
-func _player_color(p: Variant) -> Color:
-	if p == null:
-		return NEUTRAL_COLOR
-	var pid: int = int(p)
-	if pid < 0:
-		return NEUTRAL_COLOR
-	return PLAYER_COLORS[pid % PLAYER_COLORS.size()]
-
-
 func _axial_to_pixel(q: float, r: float, origin: Vector2) -> Vector2:
-	# Pointy-top hex axial->pixel.
 	var x: float = SQRT3 * (q + r / 2.0) * HEX_SIZE
 	var y: float = 1.5 * r * HEX_SIZE
 	return origin + Vector2(x, y)
 
 
 func _pixel_to_axial(local: Vector2) -> Vector2i:
-	# Inverse of _axial_to_pixel; rounds to the nearest hex via cube rounding.
 	var q_frac: float = (SQRT3 / 3.0 * local.x - 1.0 / 3.0 * local.y) / HEX_SIZE
 	var r_frac: float = (2.0 / 3.0 * local.y) / HEX_SIZE
 	return _hex_round(q_frac, r_frac)
@@ -257,7 +331,6 @@ func _hex_round(q: float, r: float) -> Vector2i:
 
 
 func _hex_corners(center: Vector2) -> PackedVector2Array:
-	# Pointy-top: corner i at angle (i + 0.5) * 60° from horizontal.
 	var pts := PackedVector2Array()
 	for i in range(6):
 		var ang: float = (i + 0.5) * PI / 3.0

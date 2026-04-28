@@ -66,7 +66,9 @@ func _init() -> void:
 		"VBox/HBoxButtons/ResetBtn",
 		"VBox/HSplit/LeftPanel/OutputLabel",
 		"VBox/HSplit/LeftPanel/OrderScroll/OrderList",
+		"VBox/HSplit/LeftPanel/ScoreboardList",
 		"VBox/HSplit/HexMap",
+		"VBox/GameOverBanner/GameOverLabel",
 	]
 	for p in required_paths:
 		if root.get_node_or_null(p) == null:
