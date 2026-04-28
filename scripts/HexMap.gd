@@ -46,11 +46,16 @@ static func player_color(p: Variant) -> Color:
 signal hex_clicked(node_id: int)
 signal unit_clicked(unit_id: int, owner: int)
 
+const ANIMATION_DURATION_MS: int = 500
+
 var view_data: Dictionary = {}
 var selected_unit_id: int = -1
 var hover_node_id: int = -1
 # Local pending orders awaiting submit; str(unit_id) -> order dict.
 var pending_orders: Dictionary = {}
+# In-flight movement animations after a turn resolves.
+# str(unit_id) -> {from: Vector2(q,r), to: Vector2(q,r), started_at: int(ms)}
+var _anim_starts: Dictionary = {}
 
 # Cache: node_id (int) -> Vector2(q, r). Rebuilt on update_view.
 var _coords_by_node: Dictionary = {}
@@ -68,9 +73,42 @@ func _ready() -> void:
 
 
 func update_view(view: Dictionary) -> void:
+	# Diff units against previous view to start movement animations.
+	_anim_starts = _compute_movement_anims(view_data, view)
 	view_data = view
 	_rebuild_caches()
 	queue_redraw()
+
+
+func _compute_movement_anims(prev_view: Dictionary,
+		new_view: Dictionary) -> Dictionary:
+	if prev_view.is_empty():
+		return {}
+	var prev_state: Dictionary = prev_view.get("state", {})
+	var new_state: Dictionary = new_view.get("state", {})
+	var prev_units: Dictionary = prev_state.get("units", {})
+	var new_units: Dictionary = new_state.get("units", {})
+	var prev_coords: Dictionary = prev_state.get("map", {}).get("coords", {})
+	var new_coords: Dictionary = new_state.get("map", {}).get("coords", {})
+	var now: int = Time.get_ticks_msec()
+	var anims: Dictionary = {}
+	for uid in new_units:
+		if not prev_units.has(uid):
+			continue  # newly built — no animation
+		var old_loc: int = int(prev_units[uid]["location"])
+		var new_loc: int = int(new_units[uid]["location"])
+		if old_loc == new_loc:
+			continue  # no movement
+		var src_qr: Variant = prev_coords.get(str(old_loc))
+		var dst_qr: Variant = new_coords.get(str(new_loc))
+		if src_qr == null or dst_qr == null:
+			continue
+		anims[uid] = {
+			"from": Vector2(src_qr[0], src_qr[1]),
+			"to": Vector2(dst_qr[0], dst_qr[1]),
+			"started_at": now,
+		}
+	return anims
 
 
 func clear_selection() -> void:
@@ -107,6 +145,16 @@ func _process(_delta: float) -> void:
 		new_hover = _node_at_qr(qr.x, qr.y)
 	if new_hover != hover_node_id:
 		hover_node_id = new_hover
+		queue_redraw()
+	# Active movement animations: redraw every frame, prune finished ones.
+	if not _anim_starts.is_empty():
+		var now: int = Time.get_ticks_msec()
+		var done: Array = []
+		for uid in _anim_starts:
+			if now - int(_anim_starts[uid]["started_at"]) >= ANIMATION_DURATION_MS:
+				done.append(uid)
+		for uid in done:
+			_anim_starts.erase(uid)
 		queue_redraw()
 
 
@@ -164,8 +212,22 @@ func _draw() -> void:
 		var loc_str: String = str(u["location"])
 		if not coords.has(loc_str):
 			continue
-		var qr2: Array = coords[loc_str]
-		var px2: Vector2 = _axial_to_pixel(qr2[0], qr2[1], origin)
+		var px2: Vector2
+		var anim: Variant = _anim_starts.get(unit_id_str)
+		if anim != null:
+			var elapsed: int = Time.get_ticks_msec() - int(anim["started_at"])
+			var t: float = clampf(
+					float(elapsed) / float(ANIMATION_DURATION_MS), 0.0, 1.0)
+			# Ease-out cubic so the unit decelerates into its destination.
+			t = 1.0 - pow(1.0 - t, 3.0)
+			var from_qr: Vector2 = anim["from"]
+			var to_qr: Vector2 = anim["to"]
+			var from_px: Vector2 = _axial_to_pixel(from_qr.x, from_qr.y, origin)
+			var to_px: Vector2 = _axial_to_pixel(to_qr.x, to_qr.y, origin)
+			px2 = from_px.lerp(to_px, t)
+		else:
+			var qr2: Array = coords[loc_str]
+			px2 = _axial_to_pixel(qr2[0], qr2[1], origin)
 		var ucolor: Color = player_color(u["owner"])
 
 		# Slightly larger, with white outline + dark inner ring for contrast.
