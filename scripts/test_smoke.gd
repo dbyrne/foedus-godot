@@ -79,6 +79,7 @@ func _init() -> void:
 		"VBox/HSplit/HexMap",
 		"VBox/HSplit/LeftPanel/Bundle4Tabs",
 		"VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/StanceList",
+		"VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/IntentList",
 		"VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatBodyEdit",
 		"VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox/AidBalance",
 		"VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox/AidSpendList",

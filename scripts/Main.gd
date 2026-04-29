@@ -54,6 +54,7 @@ const SEAT_LABELS: Array[String] = [
 @onready var send_chat_btn: Button = $VBox/HBoxButtons/SendChatBtn
 @onready var skip_chat_btn: Button = $VBox/HBoxButtons/SkipChatBtn
 @onready var stance_list: VBoxContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/StanceList
+@onready var intent_list: VBoxContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/IntentList
 @onready var chat_recipients_edit: LineEdit = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatRow/RecipientsEdit
 @onready var chat_body_edit: LineEdit = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatBodyEdit
 @onready var aid_balance_label: Label = $VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox/AidBalance
@@ -75,6 +76,11 @@ var _was_terminal: bool = false
 # {target_unit, target_order} dicts ready to send on /commit.
 var pending_stance: Dictionary = {}
 var pending_aid: Array = []
+# `pending_intents` maps unit_id (int) -> {declared_order: Dict|null,
+# recipients_raw: String}. `null` declared_order = skip (don't publish an
+# intent for that unit). `recipients_raw` is the raw text from the per-row
+# LineEdit (empty = public broadcast; "0,2" = bilateral).
+var pending_intents: Dictionary = {}
 # Cached map from a "stable spend key" (target_unit + target_order_str) to
 # the AidSpend dict, so toggling spend buttons can find their entry.
 var _aid_spend_keys: Dictionary = {}
@@ -284,20 +290,52 @@ func _on_submit_pressed() -> void:
 		var uid_str: String = str(u["id"])
 		orders[uid_str] = pending_orders.get(uid_str, {"type": "Hold"})
 	var player: int = int(view_player_spin.value)
-	# Build the press payload from `pending_stance`. Empty stance → all-NEUTRAL.
+	# Build the press payload from `pending_stance` + `pending_intents`.
 	var stance_dict: Dictionary = {}
 	for pid in pending_stance.keys():
 		stance_dict[str(pid)] = pending_stance[pid]
-	var press: Dictionary = {"stance": stance_dict, "intents": []}
-	status_label.text = ("commit: %d order(s), %d stance, %d aid spend(s) for P%d..."
-			% [orders.size(), pending_stance.size(), pending_aid.size(), player])
+	var intents: Array = _build_intents_payload()
+	var press: Dictionary = {"stance": stance_dict, "intents": intents}
+	status_label.text = ("commit: %d order(s), %d stance, %d intent(s), %d aid for P%d..."
+			% [orders.size(), pending_stance.size(), intents.size(),
+			   pending_aid.size(), player])
 	client.press_commit(current_game_id, player, press, orders, pending_aid)
 	pending_orders.clear()
 	pending_aid.clear()
+	pending_intents.clear()
 	hex_map.set_pending_orders({})
 	selected_unit_id = -1
 	hex_map.clear_selection()
 	_clear_order_list()
+
+
+func _build_intents_payload() -> Array:
+	## Build the press.intents array from the per-unit intent UI.
+	## Each entry is {unit_id, declared_order, visible_to: null | [pid, ...]}.
+	## A `null` visible_to means public broadcast; an explicit list narrows
+	## the visibility to those specific recipients.
+	var out: Array = []
+	for uid in pending_intents.keys():
+		var entry: Dictionary = pending_intents[uid]
+		var declared: Variant = entry.get("declared_order", null)
+		if declared == null:
+			continue  # skipped
+		var rec_raw: String = entry.get("recipients_raw", "")
+		var visible_to: Variant = null
+		if not rec_raw.is_empty():
+			var rs: Array = []
+			for piece in rec_raw.split(","):
+				var s: String = piece.strip_edges()
+				if s.is_valid_int():
+					rs.append(int(s))
+			if rs.size() > 0:
+				visible_to = rs
+		out.append({
+			"unit_id": int(uid),
+			"declared_order": declared,
+			"visible_to": visible_to,
+		})
+	return out
 
 
 func _on_send_chat_pressed() -> void:
@@ -618,6 +656,7 @@ func _apply_view(view: Variant) -> void:
 	hex_map.update_view(view)
 	pending_orders.clear()
 	pending_aid.clear()
+	pending_intents.clear()
 	hex_map.set_pending_orders({})
 	selected_unit_id = -1
 	hex_map.clear_selection()
@@ -625,6 +664,7 @@ func _apply_view(view: Variant) -> void:
 	_populate_scoreboard(view)
 	_render_text(view)
 	_populate_stance_list(view)
+	_populate_intent_list(view)
 	_populate_aid_panel(view)
 	_populate_info_panel(view)
 	# Sync replay tracking with server's view.
@@ -880,3 +920,65 @@ func _populate_info_panel(view: Dictionary) -> void:
 		hint.text = "(no betrayals observed by you yet)"
 		hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		betrayals_list.add_child(hint)
+
+
+func _populate_intent_list(view: Dictionary) -> void:
+	for child in intent_list.get_children():
+		child.queue_free()
+	var your_units: Array = view.get("your_units", [])
+	if your_units.is_empty():
+		var hint := Label.new()
+		hint.text = "(no units)"
+		hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		intent_list.add_child(hint)
+		return
+	var legal_map: Dictionary = view.get("legal_orders", {})
+	for u in your_units:
+		var uid: int = int(u.get("id", -1))
+		if uid < 0:
+			continue
+		var loc: int = int(u.get("location", -1))
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = "u%d @ n%d  " % [uid, loc]
+		row.add_child(label)
+		var opt := OptionButton.new()
+		opt.add_item("(no intent)")
+		# Map option index -> declared_order dict (or null for "skip").
+		var orders_for_opt: Array = [null]
+		var legal: Array = legal_map.get(str(uid), [])
+		for o in legal:
+			var od: Dictionary = o
+			opt.add_item(_format_order(od))
+			orders_for_opt.append(od)
+		opt.select(0)
+		opt.item_selected.connect(_on_intent_order_changed.bind(uid, orders_for_opt))
+		row.add_child(opt)
+		var rec_label := Label.new()
+		rec_label.text = "  to:"
+		row.add_child(rec_label)
+		var rec_edit := LineEdit.new()
+		rec_edit.placeholder_text = "all (or 0,2)"
+		rec_edit.custom_minimum_size = Vector2(80, 0)
+		rec_edit.text_changed.connect(_on_intent_recipients_changed.bind(uid))
+		row.add_child(rec_edit)
+		intent_list.add_child(row)
+
+
+func _on_intent_order_changed(idx: int, unit_id: int,
+		orders_for_opt: Array) -> void:
+	var declared: Variant = orders_for_opt[idx] if idx < orders_for_opt.size() else null
+	var entry: Dictionary = pending_intents.get(unit_id, {"recipients_raw": ""})
+	entry["declared_order"] = declared
+	if declared == null:
+		# Skipped — drop the entry entirely so _build_intents_payload skips it.
+		pending_intents.erase(unit_id)
+	else:
+		pending_intents[unit_id] = entry
+
+
+func _on_intent_recipients_changed(text: String, unit_id: int) -> void:
+	var entry: Dictionary = pending_intents.get(unit_id,
+			{"declared_order": null, "recipients_raw": ""})
+	entry["recipients_raw"] = text
+	pending_intents[unit_id] = entry
