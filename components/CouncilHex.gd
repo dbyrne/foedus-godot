@@ -38,7 +38,9 @@ const TERRAIN_COLORS := {
 @export var highlight: Color = Color(0, 0, 0, 0) :
 	set(value): highlight = value; queue_redraw()
 
-var _unit_piece: UnitPiece
+const UnitPieceScript = preload("res://components/UnitPiece.gd")
+
+var _unit_piece: Node2D  # UnitPiece, typed loosely
 
 
 func _ready() -> void:
@@ -53,7 +55,7 @@ func _refresh_unit() -> void:
 		_unit_piece = null
 	var u = tile.get("unit") if tile is Dictionary else null
 	if u != null:
-		_unit_piece = UnitPiece.new()
+		_unit_piece = UnitPieceScript.new()
 		_unit_piece.player_id = int(u.get("player", 0))
 		_unit_piece.label = String(u.get("label", "A"))
 		_unit_piece.piece_size = 26

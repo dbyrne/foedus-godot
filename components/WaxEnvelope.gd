@@ -49,7 +49,7 @@ func _draw() -> void:
 	# Seal disk
 	if sealed:
 		var center := Vector2(20, 20) * Vector2(sx, sy)
-		var radius := 5.0 * min(sx, sy)
+		var radius: float = 5.0 * min(sx, sy)
 		draw_circle(center, radius, seal_color)
 		draw_arc(center, radius, 0, TAU, 32, Tokens.INK, 0.8)
 		if label != "":

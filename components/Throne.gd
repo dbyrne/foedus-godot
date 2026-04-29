@@ -24,7 +24,9 @@ class_name Throne
 		queue_redraw()
 		_refresh()
 
-var _crest: Crest
+const CrestScript = preload("res://components/Crest.gd")
+
+var _crest: Node  # Crest, but typed loosely to avoid class_name ordering issues
 
 
 func _ready() -> void:
@@ -39,7 +41,7 @@ func _refresh() -> void:
 		_crest.queue_free()
 		_crest = null
 	if occupied:
-		_crest = Crest.new()
+		_crest = CrestScript.new()
 		_crest.player_id = player_id
 		_crest.crest_size = int(throne_size * 0.5)
 		_crest.position = Vector2(throne_size * 0.25, throne_size * 0.35)

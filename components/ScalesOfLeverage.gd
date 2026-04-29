@@ -48,8 +48,9 @@ func _draw() -> void:
 
 	# Pans hang straight down from each beam end (gravity is real)
 	var pan_drop := s * 0.18
-	for end_pt in [b_left, b_right]:
-		var pan_top := end_pt + Vector2(0, pan_drop)
+	var beam_ends: Array[Vector2] = [b_left, b_right]
+	for end_pt in beam_ends:
+		var pan_top: Vector2 = end_pt + Vector2(0, pan_drop)
 		# Chain
 		draw_line(end_pt + Vector2(-s * 0.04, 0), pan_top + Vector2(-s * 0.06, 0),
 			Tokens.BRASS_DIM, 1.0)
