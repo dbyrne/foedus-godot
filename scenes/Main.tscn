@@ -171,7 +171,15 @@ text = "Refresh view"
 
 [node name="SubmitBtn" type="Button" parent="VBox/HBoxButtons"]
 layout_mode = 2
-text = "Submit orders"
+text = "Commit (orders + press)"
+
+[node name="SendChatBtn" type="Button" parent="VBox/HBoxButtons"]
+layout_mode = 2
+text = "Send chat"
+
+[node name="SkipChatBtn" type="Button" parent="VBox/HBoxButtons"]
+layout_mode = 2
+text = "Skip chat"
 
 [node name="ResetBtn" type="Button" parent="VBox/HBoxButtons"]
 layout_mode = 2
@@ -235,6 +243,97 @@ size_flags_vertical = 0
 bbcode_enabled = true
 text = "[i]waiting...[/i]"
 fit_content = true
+
+[node name="Bundle4Tabs" type="TabContainer" parent="VBox/HSplit/LeftPanel"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Press" type="ScrollContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs"]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="StanceHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
+layout_mode = 2
+text = "Stance toward each other player"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
+
+[node name="StanceList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
+layout_mode = 2
+
+[node name="ChatHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
+layout_mode = 2
+text = "Chat draft (type then \"Send chat\")"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
+
+[node name="ChatRow" type="HBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
+layout_mode = 2
+
+[node name="RecipientsLabel" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatRow"]
+layout_mode = 2
+text = "to: "
+
+[node name="RecipientsEdit" type="LineEdit" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+placeholder_text = "all (or 0,2,3)"
+
+[node name="ChatBodyEdit" type="LineEdit" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
+layout_mode = 2
+placeholder_text = "Draft a message..."
+
+[node name="Aid" type="ScrollContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs"]
+visible = false
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="AidBalance" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
+layout_mode = 2
+text = "Aid tokens: 0"
+theme_override_font_sizes/font_size = 14
+
+[node name="AidSpendHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
+layout_mode = 2
+text = "Backable ally intents (1 token each)"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
+
+[node name="AidSpendList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
+layout_mode = 2
+
+[node name="TrustHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
+layout_mode = 2
+text = "Trust ledger (rows: aid given to columns)"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
+
+[node name="TrustGrid" type="GridContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
+layout_mode = 2
+
+[node name="Info" type="ScrollContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs"]
+visible = false
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DetenteIndicator" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox"]
+layout_mode = 2
+text = "Détente streak: 0 / threshold N (disabled)"
+theme_override_font_sizes/font_size = 14
+
+[node name="BetrayalsHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox"]
+layout_mode = 2
+text = "Betrayals observed by you"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
+
+[node name="BetrayalsList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox"]
+layout_mode = 2
 
 [node name="OrderHeader" type="Label" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2

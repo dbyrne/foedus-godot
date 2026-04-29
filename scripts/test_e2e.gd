@@ -93,11 +93,36 @@ func _on_response(endpoint: String, data: Variant) -> void:
 		if typeof(data) == TYPE_DICTIONARY and data.get("is_replay", false) \
 				and int(data.get("turn", -1)) == 1:
 			print("  past view at turn 1 ok (is_replay=true)")
-			print("--- ALL OK ---")
-			_finish(0)
+			step = 5
+			print("step 5: GET /games/%s/view/0  (Bundle 4 field check)" % game_id)
+			client.view(game_id, 0)
 		else:
 			print("FAIL: replay view did not return is_replay/turn=1: %s" % str(data))
 			_finish(1)
+	elif step == 5 and endpoint.contains("/view/"):
+		# Bundle 4: validate that the new fields exist in the live view.
+		if typeof(data) != TYPE_DICTIONARY:
+			print("FAIL: view not a dict")
+			_finish(1)
+			return
+		var missing: Array[String] = []
+		for k in ["your_aid_tokens", "your_aid_pending", "your_betrayals", "last_press"]:
+			if not data.has(k):
+				missing.append(k)
+		var state: Dictionary = data.get("state", {})
+		for k in ["aid_tokens", "aid_given", "round_aid_pending"]:
+			if not state.has(k):
+				missing.append("state.%s" % k)
+		if not missing.is_empty():
+			print("FAIL: view missing Bundle 4 fields: %s" % str(missing))
+			_finish(1)
+			return
+		print("  Bundle 4 fields present: your_aid_tokens=%s state.aid_given=%s" % [
+				str(data["your_aid_tokens"]),
+				str(state["aid_given"]),
+		])
+		print("--- ALL OK ---")
+		_finish(0)
 
 
 func _on_failure(endpoint: String, message: String) -> void:

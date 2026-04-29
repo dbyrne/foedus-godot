@@ -104,3 +104,38 @@ func history(game_id: String) -> void:
 
 func history_view(game_id: String, turn: int, player: int) -> void:
 	get_request("/games/%s/history/%d/view/%d" % [game_id, turn, player])
+
+
+# --- Press v0 + Bundle 4 -----------------------------------------------------
+##
+## Press v0 round flow per turn:
+##   1. Each human seat calls press_chat(player, draft) zero or more times
+##      with a non-null draft to broadcast/DM messages. A null draft
+##      signals "chat done" (no further chat from this seat).
+##   2. Once every human has signaled chat-done, /commit is unblocked.
+##   3. Each human seat calls press_commit(player, press, orders, aid_spends)
+##      atomically. When all have committed, the server resolves the round.
+##
+## Bundle 4 adds aid_spends to /commit — list of {target_unit, target_order}
+## dicts. Aid is gated on mutual-ALLY stance with the recipient in the
+## previous turn's locked press.
+
+
+func press_chat(game_id: String, player: int,
+		draft: Variant) -> void:
+	## Send a chat draft (or null to signal chat-done).
+	## `draft` shape: {recipients: null | [int, ...], body: String}
+	post_request("/games/%s/chat" % game_id,
+			{"player": player, "draft": draft})
+
+
+func press_commit(game_id: String, player: int, press: Dictionary,
+		orders: Dictionary, aid_spends: Array = []) -> void:
+	## Submit press tokens + orders + (optional) aid spends atomically.
+	## Server returns 425 if chat phase isn't complete yet.
+	post_request("/games/%s/commit" % game_id, {
+		"player": player,
+		"press": press,
+		"orders": orders,
+		"aid_spends": aid_spends,
+	})
