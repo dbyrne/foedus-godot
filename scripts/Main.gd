@@ -50,6 +50,18 @@ const SEAT_LABELS: Array[String] = [
 @onready var scoreboard_list: VBoxContainer = $VBox/HSplit/LeftPanel/ScoreboardList
 @onready var game_over_banner: PanelContainer = $VBox/GameOverBanner
 @onready var game_over_label: Label = $VBox/GameOverBanner/GameOverLabel
+# Bundle 4 / press v0 UI:
+@onready var send_chat_btn: Button = $VBox/HBoxButtons/SendChatBtn
+@onready var skip_chat_btn: Button = $VBox/HBoxButtons/SkipChatBtn
+@onready var stance_list: VBoxContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/StanceList
+@onready var intent_list: VBoxContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/IntentList
+@onready var chat_recipients_edit: LineEdit = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatRow/RecipientsEdit
+@onready var chat_body_edit: LineEdit = $VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox/ChatBodyEdit
+@onready var aid_balance_label: Label = $VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox/AidBalance
+@onready var aid_spend_list: VBoxContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox/AidSpendList
+@onready var trust_grid: GridContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox/TrustGrid
+@onready var detente_indicator: Label = $VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox/DetenteIndicator
+@onready var betrayals_list: VBoxContainer = $VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox/BetrayalsList
 
 var seat_options: Array[OptionButton] = []
 var client: GameClient
@@ -59,6 +71,19 @@ var current_view: Dictionary = {}
 var selected_unit_id: int = -1
 var pending_orders: Dictionary = {}
 var _was_terminal: bool = false
+# Bundle 4 / press v0 state. `pending_stance` maps other_player_id -> stance
+# string ("ally"|"neutral"|"hostile"). `pending_aid` is an array of
+# {target_unit, target_order} dicts ready to send on /commit.
+var pending_stance: Dictionary = {}
+var pending_aid: Array = []
+# `pending_intents` maps unit_id (int) -> {declared_order: Dict|null,
+# recipients_raw: String}. `null` declared_order = skip (don't publish an
+# intent for that unit). `recipients_raw` is the raw text from the per-row
+# LineEdit (empty = public broadcast; "0,2" = bilateral).
+var pending_intents: Dictionary = {}
+# Cached map from a "stable spend key" (target_unit + target_order_str) to
+# the AidSpend dict, so toggling spend buttons can find their entry.
+var _aid_spend_keys: Dictionary = {}
 # Replay state. `current_live_turn` is the server's authoritative latest;
 # `in_replay` is true when the user is viewing a past snapshot.
 var in_replay: bool = false
@@ -91,6 +116,8 @@ func _ready() -> void:
 	auto_btn.pressed.connect(_on_auto_pressed)
 	view_btn.pressed.connect(_on_view_pressed)
 	submit_btn.pressed.connect(_on_submit_pressed)
+	send_chat_btn.pressed.connect(_on_send_chat_pressed)
+	skip_chat_btn.pressed.connect(_on_skip_chat_pressed)
 	reset_btn.pressed.connect(_on_reset_pressed)
 	view_player_spin.value_changed.connect(_on_view_player_changed)
 	replay_turn_spin.value_changed.connect(_on_replay_turn_changed)
@@ -252,6 +279,9 @@ func _update_replay_ui() -> void:
 
 
 func _on_submit_pressed() -> void:
+	## Press v0 commit: submit press tokens (stance) + orders + aid spends
+	## atomically. Server returns 425 if chat phase isn't complete yet —
+	## use "Skip chat" first if you didn't /chat anything else.
 	if current_game_id.is_empty() or current_view.is_empty():
 		return
 	sound.submit()
@@ -259,19 +289,91 @@ func _on_submit_pressed() -> void:
 	for u in current_view.get("your_units", []):
 		var uid_str: String = str(u["id"])
 		orders[uid_str] = pending_orders.get(uid_str, {"type": "Hold"})
-	if orders.is_empty():
-		status_label.text = "(no units to submit orders for)"
-		return
 	var player: int = int(view_player_spin.value)
-	status_label.text = "submitting %d order(s) for player %d..." % [
-		orders.size(), player
-	]
-	client.submit_orders(current_game_id, player, orders)
+	# Build the press payload from `pending_stance` + `pending_intents`.
+	var stance_dict: Dictionary = {}
+	for pid in pending_stance.keys():
+		stance_dict[str(pid)] = pending_stance[pid]
+	var intents: Array = _build_intents_payload()
+	var press: Dictionary = {"stance": stance_dict, "intents": intents}
+	status_label.text = ("commit: %d order(s), %d stance, %d intent(s), %d aid for P%d..."
+			% [orders.size(), pending_stance.size(), intents.size(),
+			   pending_aid.size(), player])
+	client.press_commit(current_game_id, player, press, orders, pending_aid)
 	pending_orders.clear()
+	pending_aid.clear()
+	pending_intents.clear()
 	hex_map.set_pending_orders({})
 	selected_unit_id = -1
 	hex_map.clear_selection()
 	_clear_order_list()
+
+
+func _build_intents_payload() -> Array:
+	## Build the press.intents array from the per-unit intent UI.
+	## Each entry is {unit_id, declared_order, visible_to: null | [pid, ...]}.
+	## A `null` visible_to means public broadcast; an explicit list narrows
+	## the visibility to those specific recipients.
+	var out: Array = []
+	for uid in pending_intents.keys():
+		var entry: Dictionary = pending_intents[uid]
+		var declared: Variant = entry.get("declared_order", null)
+		if declared == null:
+			continue  # skipped
+		var rec_raw: String = entry.get("recipients_raw", "")
+		var visible_to: Variant = null
+		if not rec_raw.is_empty():
+			var rs: Array = []
+			for piece in rec_raw.split(","):
+				var s: String = piece.strip_edges()
+				if s.is_valid_int():
+					rs.append(int(s))
+			if rs.size() > 0:
+				visible_to = rs
+		out.append({
+			"unit_id": int(uid),
+			"declared_order": declared,
+			"visible_to": visible_to,
+		})
+	return out
+
+
+func _on_send_chat_pressed() -> void:
+	## Send a chat draft (does NOT signal chat-done). Player must still
+	## click "Skip chat" or click "Commit" after the chat phase completes.
+	if current_game_id.is_empty() or current_view.is_empty():
+		return
+	var body: String = chat_body_edit.text.strip_edges()
+	if body.is_empty():
+		status_label.text = "(chat body is empty; nothing sent)"
+		return
+	var recipients_raw: String = chat_recipients_edit.text.strip_edges()
+	var recipients: Variant = null
+	if not recipients_raw.is_empty():
+		var rs: Array = []
+		for piece in recipients_raw.split(","):
+			var s: String = piece.strip_edges()
+			if s.is_empty():
+				continue
+			if s.is_valid_int():
+				rs.append(int(s))
+		if rs.size() > 0:
+			recipients = rs
+	var player: int = int(view_player_spin.value)
+	var draft: Dictionary = {"recipients": recipients, "body": body}
+	client.press_chat(current_game_id, player, draft)
+	chat_body_edit.text = ""
+	status_label.text = "chat sent (recipients=%s)" % str(recipients)
+
+
+func _on_skip_chat_pressed() -> void:
+	## Signal chat-done with no message. After this returns, /commit
+	## becomes valid (assuming all other humans have also signaled).
+	if current_game_id.is_empty():
+		return
+	var player: int = int(view_player_spin.value)
+	client.press_chat(current_game_id, player, null)
+	status_label.text = "chat-done signaled for P%d" % player
 
 
 func _on_reset_pressed() -> void:
@@ -531,6 +633,14 @@ func _on_response(endpoint: String, data: Variant) -> void:
 		var ready: bool = data.get("ready_to_resolve", false)
 		status_label.text = "orders submitted; ready_to_resolve=%s" % str(ready)
 		_refresh_view()
+	elif endpoint.contains("/commit"):
+		var advanced: bool = data.get("round_advanced", false)
+		status_label.text = "commit OK; round_advanced=%s" % str(advanced)
+		_refresh_view()
+	elif endpoint.contains("/chat"):
+		# /chat returns {ok, chat_phase_complete, ...}; refresh the view
+		# so the UI can reflect changed phase / awaiting state.
+		_refresh_view()
 	elif endpoint.contains("/view/"):
 		_apply_view(data)
 
@@ -545,12 +655,18 @@ func _apply_view(view: Variant) -> void:
 	current_view = view
 	hex_map.update_view(view)
 	pending_orders.clear()
+	pending_aid.clear()
+	pending_intents.clear()
 	hex_map.set_pending_orders({})
 	selected_unit_id = -1
 	hex_map.clear_selection()
 	_clear_order_list()
 	_populate_scoreboard(view)
 	_render_text(view)
+	_populate_stance_list(view)
+	_populate_intent_list(view)
+	_populate_aid_panel(view)
+	_populate_info_panel(view)
 	# Sync replay tracking with server's view.
 	in_replay = bool(view.get("is_replay", false))
 	var server_live_turn: int = int(view.get("current_turn",
@@ -597,3 +713,272 @@ func _render_text(view: Dictionary) -> void:
 	for u in view.get("your_units", []):
 		lines.append("  u%s @ node %s" % [u.get("id"), u.get("location")])
 	output_label.text = "\n".join(lines)
+
+
+# --- Bundle 4 / press v0 panels --------------------------------------------
+
+
+func _stance_string(s: String) -> String:
+	## Normalize an incoming stance string (engine emits "ally"/"neutral"/"hostile").
+	var s2 := s.to_lower()
+	if s2 == "ally" or s2 == "neutral" or s2 == "hostile":
+		return s2
+	return "neutral"
+
+
+func _populate_stance_list(view: Dictionary) -> void:
+	for child in stance_list.get_children():
+		child.queue_free()
+	pending_stance.clear()
+	var you: int = int(view.get("you", -1))
+	var seats: Dictionary = view.get("seats", {})
+	var eliminated: Array = view.get("eliminated", [])
+	# Read previous-turn stance from view.last_press[me] if available, so the
+	# UI starts pre-populated with the player's prior declaration.
+	var last_press: Dictionary = view.get("last_press", {})
+	var my_last: Dictionary = last_press.get(str(you), {})
+	var my_last_stance: Dictionary = my_last.get("stance", {})
+	for k in seats.keys():
+		var pid: int = int(k)
+		if pid == you or pid in eliminated:
+			continue
+		var prior: String = _stance_string(str(my_last_stance.get(str(pid), "neutral")))
+		pending_stance[pid] = prior
+		var row := HBoxContainer.new()
+		var swatch := ColorRect.new()
+		swatch.color = HexMap.player_color(pid)
+		swatch.custom_minimum_size = Vector2(12, 12)
+		row.add_child(swatch)
+		var label := Label.new()
+		label.text = "  P%d  " % pid
+		row.add_child(label)
+		var opt := OptionButton.new()
+		opt.add_item("ALLY")
+		opt.add_item("NEUTRAL")
+		opt.add_item("HOSTILE")
+		var idx := 1  # NEUTRAL by default
+		match prior:
+			"ally": idx = 0
+			"neutral": idx = 1
+			"hostile": idx = 2
+		opt.select(idx)
+		opt.item_selected.connect(_on_stance_changed.bind(pid))
+		row.add_child(opt)
+		stance_list.add_child(row)
+
+
+func _on_stance_changed(idx: int, pid: int) -> void:
+	var s := "neutral"
+	match idx:
+		0: s = "ally"
+		1: s = "neutral"
+		2: s = "hostile"
+	pending_stance[pid] = s
+
+
+func _populate_aid_panel(view: Dictionary) -> void:
+	for child in aid_spend_list.get_children():
+		child.queue_free()
+	for child in trust_grid.get_children():
+		child.queue_free()
+	_aid_spend_keys.clear()
+
+	var balance: int = int(view.get("your_aid_tokens", 0))
+	aid_balance_label.text = "Aid tokens: %d  (cap %d)" % [
+		balance,
+		int(view.get("state", {}).get("config", {}).get("aid_token_cap", 10)),
+	]
+
+	# Backable ally intents — read other players' round_press_pending from
+	# state, intersect with mutual-ALLY in last_press, surface each Move
+	# intent as a click-to-spend row.
+	var you: int = int(view.get("you", -1))
+	var state: Dictionary = view.get("state", {})
+	# round_press_pending isn't currently in serialize_state; we use the
+	# "last_press" snapshot for displaying *prior-round* intents instead.
+	# Aid spends can target current-round canon — but we don't know current
+	# round intents yet, so rows are produced from last_press as a hint.
+	var last_press: Dictionary = view.get("last_press", {})
+	var my_last_stance: Dictionary = last_press.get(str(you), {}).get("stance", {})
+
+	for k in last_press.keys():
+		var other_pid: int = int(k)
+		if other_pid == you:
+			continue
+		var their: Dictionary = last_press[k]
+		var their_stance: Dictionary = their.get("stance", {})
+		# Mutual-ALLY check.
+		var i_ally: bool = _stance_string(str(my_last_stance.get(str(other_pid), "neutral"))) == "ally"
+		var they_ally: bool = _stance_string(str(their_stance.get(str(you), "neutral"))) == "ally"
+		if not (i_ally and they_ally):
+			continue
+		for intent in their.get("intents", []):
+			var declared: Dictionary = intent.get("declared_order", {})
+			if declared.get("type", "") != "Move":
+				continue
+			var unit_id: int = int(intent.get("unit_id", -1))
+			var dest: int = int(declared.get("dest", -1))
+			var key := "u%d:Move:n%d" % [unit_id, dest]
+			_aid_spend_keys[key] = {
+				"target_unit": unit_id,
+				"target_order": declared,
+			}
+			var btn := Button.new()
+			btn.toggle_mode = true
+			btn.text = "P%d's u%d → node %d  [1 token]" % [other_pid, unit_id, dest]
+			btn.toggled.connect(_on_aid_toggle.bind(key))
+			aid_spend_list.add_child(btn)
+	if aid_spend_list.get_child_count() == 0:
+		var hint := Label.new()
+		hint.text = "(no mutual-ALLY partners with declared Move intents)"
+		hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		aid_spend_list.add_child(hint)
+
+	# Trust ledger: G[a,b] = aid given by a to b. Display as a labeled
+	# n×n grid with corner labels.
+	var aid_given: Dictionary = state.get("aid_given", {})
+	var seats: Dictionary = view.get("seats", {})
+	var pids: Array = []
+	for sk in seats.keys():
+		pids.append(int(sk))
+	pids.sort()
+	trust_grid.columns = pids.size() + 1
+	# Header row: empty corner + column headers.
+	var corner := Label.new()
+	corner.text = "from\to"
+	corner.custom_minimum_size = Vector2(56, 0)
+	trust_grid.add_child(corner)
+	for col_pid in pids:
+		var h := Label.new()
+		h.text = "P%d" % col_pid
+		h.add_theme_color_override("font_color", HexMap.player_color(col_pid))
+		trust_grid.add_child(h)
+	for row_pid in pids:
+		var row_label := Label.new()
+		row_label.text = "P%d" % row_pid
+		row_label.add_theme_color_override("font_color", HexMap.player_color(row_pid))
+		trust_grid.add_child(row_label)
+		for col_pid in pids:
+			var v: int = int(aid_given.get("%d,%d" % [row_pid, col_pid], 0))
+			var cell := Label.new()
+			if row_pid == col_pid:
+				cell.text = "—"
+				cell.add_theme_color_override("font_color", Color(0.4, 0.4, 0.4))
+			else:
+				cell.text = str(v)
+				if v > 0:
+					cell.add_theme_color_override("font_color", Color(0.85, 0.65, 0.25))
+				else:
+					cell.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+			trust_grid.add_child(cell)
+
+
+func _on_aid_toggle(toggled: bool, key: String) -> void:
+	var spend: Dictionary = _aid_spend_keys.get(key, {})
+	if spend.is_empty():
+		return
+	if toggled:
+		pending_aid.append(spend)
+	else:
+		for i in range(pending_aid.size() - 1, -1, -1):
+			if pending_aid[i].hash() == spend.hash():
+				pending_aid.remove_at(i)
+				break
+
+
+func _populate_info_panel(view: Dictionary) -> void:
+	for child in betrayals_list.get_children():
+		child.queue_free()
+	var state: Dictionary = view.get("state", {})
+	var streak: int = int(state.get("mutual_ally_streak", 0))
+	var threshold_raw: Variant = state.get("config", {}).get("detente_threshold", 0)
+	var threshold: int = int(threshold_raw) if threshold_raw != null else 0
+	if threshold <= 0:
+		detente_indicator.text = "Détente streak: %d  (détente disabled)" % streak
+	else:
+		detente_indicator.text = "Détente streak: %d / %d turns" % [streak, threshold]
+		if streak >= threshold:
+			detente_indicator.add_theme_color_override("font_color",
+					Color(0.5, 0.86, 0.5))
+		else:
+			detente_indicator.add_theme_color_override("font_color",
+					Color(0.78, 0.82, 0.92))
+	for b in view.get("your_betrayals", []):
+		var line := Label.new()
+		var actual: Dictionary = b.get("actual_order", {})
+		var declared: Dictionary = b.get("intent", {}).get("declared_order", {})
+		line.text = "T%d  P%d declared %s, did %s" % [
+			int(b.get("turn", 0)),
+			int(b.get("betrayer", -1)),
+			_format_order(declared),
+			_format_order(actual),
+		]
+		line.add_theme_color_override("font_color", Color(0.95, 0.55, 0.55))
+		betrayals_list.add_child(line)
+	if betrayals_list.get_child_count() == 0:
+		var hint := Label.new()
+		hint.text = "(no betrayals observed by you yet)"
+		hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		betrayals_list.add_child(hint)
+
+
+func _populate_intent_list(view: Dictionary) -> void:
+	for child in intent_list.get_children():
+		child.queue_free()
+	var your_units: Array = view.get("your_units", [])
+	if your_units.is_empty():
+		var hint := Label.new()
+		hint.text = "(no units)"
+		hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		intent_list.add_child(hint)
+		return
+	var legal_map: Dictionary = view.get("legal_orders", {})
+	for u in your_units:
+		var uid: int = int(u.get("id", -1))
+		if uid < 0:
+			continue
+		var loc: int = int(u.get("location", -1))
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = "u%d @ n%d  " % [uid, loc]
+		row.add_child(label)
+		var opt := OptionButton.new()
+		opt.add_item("(no intent)")
+		# Map option index -> declared_order dict (or null for "skip").
+		var orders_for_opt: Array = [null]
+		var legal: Array = legal_map.get(str(uid), [])
+		for o in legal:
+			var od: Dictionary = o
+			opt.add_item(_format_order(od))
+			orders_for_opt.append(od)
+		opt.select(0)
+		opt.item_selected.connect(_on_intent_order_changed.bind(uid, orders_for_opt))
+		row.add_child(opt)
+		var rec_label := Label.new()
+		rec_label.text = "  to:"
+		row.add_child(rec_label)
+		var rec_edit := LineEdit.new()
+		rec_edit.placeholder_text = "all (or 0,2)"
+		rec_edit.custom_minimum_size = Vector2(80, 0)
+		rec_edit.text_changed.connect(_on_intent_recipients_changed.bind(uid))
+		row.add_child(rec_edit)
+		intent_list.add_child(row)
+
+
+func _on_intent_order_changed(idx: int, unit_id: int,
+		orders_for_opt: Array) -> void:
+	var declared: Variant = orders_for_opt[idx] if idx < orders_for_opt.size() else null
+	var entry: Dictionary = pending_intents.get(unit_id, {"recipients_raw": ""})
+	entry["declared_order"] = declared
+	if declared == null:
+		# Skipped — drop the entry entirely so _build_intents_payload skips it.
+		pending_intents.erase(unit_id)
+	else:
+		pending_intents[unit_id] = entry
+
+
+func _on_intent_recipients_changed(text: String, unit_id: int) -> void:
+	var entry: Dictionary = pending_intents.get(unit_id,
+			{"declared_order": null, "recipients_raw": ""})
+	entry["recipients_raw"] = text
+	pending_intents[unit_id] = entry
