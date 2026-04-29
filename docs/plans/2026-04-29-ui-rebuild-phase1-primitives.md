@@ -16,6 +16,34 @@ primitive. New headless test asserts they all instantiate. Existing
 
 ---
 
+## Implementation note (post-execution amendment, 2026-04-29)
+
+Two decisions made during execution that the original plan didn't
+foresee:
+
+1. **No per-component `.tscn` files.** Components are heavily
+   `_draw()`-based (no editable subtree to author in the editor), so
+   each ships as a single `.gd` with `class_name`. The demo scene is
+   one minimal `.tscn` whose attached script builds the layout
+   programmatically. This cut about 9 hand-written `.tscn` files —
+   substantially less risk of `.tscn` syntax errors.
+
+2. **Theme `.tres` deferred to Phase 2.** Components self-style from
+   `Tokens` directly. The original plan had a Task 3 "war_council_theme.tres"
+   that exposed colors/fonts as Theme defaults for `Button`/`Label`/etc,
+   but Phase 1 has no game screens consuming those defaults. Theme
+   creation is cheaper *after* Phase 2's screens reveal which control
+   types actually need styling. Task 3 is marked done with a deferral
+   note.
+
+3. **Cross-component references use `preload`, not `class_name`.**
+   When `godot --headless --script` runs from the CLI without the
+   editor having scanned the project, `class_name` registration is
+   not always complete by the time another script tries to reference
+   it. Switched to `const FooScript = preload("res://components/Foo.gd")`
+   then `FooScript.new()` for cross-component instantiation. Less
+   sugar but unambiguous from any entry point.
+
 ## Task ordering
 
 Tasks land bottom-up: tokens & fonts first (every other component
