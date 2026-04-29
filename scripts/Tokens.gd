@@ -49,19 +49,28 @@ const FACTION_TAGS := {
 
 # --- Font paths ----------------------------------------------------------
 #
+# Variable fonts: weight is selected at use-site via the "wght" axis
+# (Godot's FontFile or Theme variations). Italic is a separate file
+# where the family ships a discrete italic master.
+#
 # The theme (themes/war_council_theme.tres) loads these and exposes them
-# as Theme default fonts. Components reference them via the theme; only
-# special cases (hand-drawn `_draw()` text) load these constants
-# directly.
+# as Theme default fonts.
 
-const FONT_DISPLAY_BOLD  := "res://fonts/PlayfairDisplay-Bold.ttf"
-const FONT_DISPLAY_BLACK := "res://fonts/PlayfairDisplay-Black.ttf"
-const FONT_SERIF         := "res://fonts/CormorantGaramond-Regular.ttf"
-const FONT_SERIF_ITALIC  := "res://fonts/CormorantGaramond-Italic.ttf"
-const FONT_SERIF_BOLD    := "res://fonts/CormorantGaramond-Bold.ttf"
-const FONT_SANS_BOLD     := "res://fonts/IBMPlexSans-Bold.ttf"
-const FONT_MONO          := "res://fonts/JetBrainsMono-Regular.ttf"
-const FONT_MONO_MEDIUM   := "res://fonts/JetBrainsMono-Medium.ttf"
+const FONT_DISPLAY        := "res://fonts/PlayfairDisplay.ttf"      # 400-900
+const FONT_SERIF          := "res://fonts/CormorantGaramond.ttf"     # 300-700
+const FONT_SERIF_ITALIC   := "res://fonts/CormorantGaramond-Italic.ttf"
+const FONT_SANS           := "res://fonts/IBMPlexSans.ttf"           # 100-700, wdth axis too
+const FONT_MONO           := "res://fonts/JetBrainsMono.ttf"         # 100-800
+
+# Suggested weight constants for direct font use (the theme presets these
+# for chrome controls; only override for one-off text)
+const WEIGHT_DISPLAY_BOLD  := 700
+const WEIGHT_DISPLAY_BLACK := 900
+const WEIGHT_SERIF_BODY    := 400
+const WEIGHT_SERIF_BOLD    := 700
+const WEIGHT_SANS_BOLD     := 700
+const WEIGHT_MONO          := 400
+const WEIGHT_MONO_MEDIUM   := 500
 
 # --- Hex grid math -------------------------------------------------------
 #
