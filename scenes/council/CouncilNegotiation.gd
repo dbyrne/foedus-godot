@@ -141,9 +141,17 @@ func _render_intents(vm) -> void:
 		var pid := int(intent.get("player_id", -1))
 		var unit_id := int(intent.get("unit_id", -1))
 		var ord = intent.get("declared_order", {})
-		var kind := String(ord.get("kind", "?"))
-		plate.text = "%s u%d %s" % [
-			Tokens.faction_tag(pid), unit_id, kind.to_upper()
+		# Wire uses `type` (not `kind`); also surface destination/target
+		# when present so the chip says "BOR u4 MOVE→14" rather than a
+		# bare verb.
+		var verb := String(ord.get("type", ord.get("kind", "?")))
+		var detail := ""
+		if ord.has("dest"):
+			detail = "→%s" % str(ord["dest"])
+		elif ord.has("target_unit"):
+			detail = "·u%s" % str(ord["target_unit"])
+		plate.text = "%s u%d %s%s" % [
+			Tokens.faction_tag(pid), unit_id, verb.to_upper(), detail
 		]
 		plate.font_size_px = 9
 		_intents_row.add_child(plate)

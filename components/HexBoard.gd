@@ -87,6 +87,22 @@ func _rebuild() -> void:
 	_refresh_selection_overlay()
 
 
+func get_hex_node(node_id: int) -> Node2D:
+	## Public accessor for the CouncilHex Node2D at a given node_id.
+	## Used by Resolution playback to hide a moving unit on its source
+	## hex while a ghost lerps to the destination.
+	return _hex_nodes.get(node_id)
+
+
+func set_unit_visible_at(node_id: int, visible: bool) -> void:
+	var hex = _hex_nodes.get(node_id)
+	if hex == null:
+		return
+	for c in hex.get_children():
+		if c is Node2D:
+			c.visible = visible
+
+
 func _refresh_selection_overlay() -> void:
 	if _view_model == null:
 		return
@@ -100,14 +116,14 @@ func _refresh_selection_overlay() -> void:
 
 
 func _terrain_for_node_type(node_type: String) -> String:
-	## CouncilHex's `terrain` field uses lowercase names; the wire's
-	## NodeType enum is uppercase. Map them here so the engine's enum
-	## stays the source of truth and CouncilHex stays string-keyed.
-	match node_type:
-		"FOREST":   return "forest"
-		"MOUNTAIN": return "mountain"
-		"WATER":    return "water"
-		# HOME, SUPPLY, PLAIN all render as the "plain" base; their
+	## CouncilHex's `terrain` field uses lowercase names. The wire ships
+	## node_type lowercase too (verified live), but accept either case
+	## so we don't regress if the engine ever switches.
+	match node_type.to_lower():
+		"forest":   return "forest"
+		"mountain": return "mountain"
+		"water":    return "water"
+		# home, supply, plain all render as the "plain" base; their
 		# distinguishing markers (banner / chest) are drawn from
 		# tile.home / tile.supply, not from the terrain face.
 		_: return "plain"
@@ -115,9 +131,9 @@ func _terrain_for_node_type(node_type: String) -> String:
 
 func _supply_for_tile(tile: Dictionary) -> int:
 	## CouncilHex.supply is 0 (none), 1 (regular chest), 2 (high-value crown).
-	## Only SUPPLY-type nodes show a marker; HOMEs always render their banner
+	## Only supply-type nodes show a marker; homes always render their banner
 	## but no supply chest even though they yield score.
-	if tile.get("node_type") != "SUPPLY":
+	if String(tile.get("node_type", "")).to_lower() != "supply":
 		return 0
 	return int(tile.get("supply_value", 1))
 
