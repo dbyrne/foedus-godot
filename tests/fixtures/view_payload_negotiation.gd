@@ -83,12 +83,15 @@ static func negotiation_view() -> Dictionary:
 			{"id": 0, "owner": 0, "location": 0},
 			{"id": 2, "owner": 0, "location": 1},
 		],
+		# legal_orders uses the wire format from foedus.remote.wire.serialize_order:
+		# {"type": "Hold"} / {"type": "Move", "dest": N} / etc. The dict key
+		# is the unit_id; serialized orders don't carry a unit_id field.
 		"legal_orders": {
-			"0": [{"kind": "Hold", "unit_id": 0}],
+			"0": [{"type": "Hold"}],
 			"2": [
-				{"kind": "Hold", "unit_id": 2},
-				{"kind": "Move", "unit_id": 2, "dest": 4},
-				{"kind": "Move", "unit_id": 2, "dest": 2},
+				{"type": "Hold"},
+				{"type": "Move", "dest": 4},
+				{"type": "Move", "dest": 2},
 			],
 		},
 		"awaiting_humans": [0],

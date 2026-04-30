@@ -340,7 +340,41 @@ Five deviations from the original 2a plan, all minor:
 
 ## Sub-phase 2b · Orders + drag-from-piece
 
-Detailed plan written when 2a merges. High-level scope:
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Shipped with these specifics:
+
+1. **OrderArrow** is a Node2D with four kinds (Move solid+filled-head,
+   SupportMove dashed+open-head, SupportHold dashed-ring around the
+   target unit, Hold solid ring on own unit). Color from
+   Tokens.player_main; ghost variant lowers alpha for in-flight drags.
+
+2. **HexBoard drag-state** lives entirely in `_input` on the existing
+   Node2D. Mouse-down on an own unit starts a drag; motion updates the
+   ghost-arrow draw; mouse-up emits `drag_proposed(from_unit_id,
+   to_node_id)`. Right-click is forwarded as a normal click (the
+   Orders scene interprets right-click on an own unit as cancel-order).
+
+3. **OrderController** is a separate RefCounted (parallel to
+   PressController). Holds `orders[unit_id] = order_dict`. Its
+   `interpret_drag` static method does the gesture-to-Order mapping
+   using ViewModel.legal_orders_for(uid) — the UI never invents an
+   order the server hasn't already greenlit.
+
+4. **Phase router** lives in CouncilEntry. The launcher subscribes to
+   CouncilGame.phase_transition and swaps between
+   CouncilNegotiation.tscn and CouncilOrders.tscn. The active scene's
+   `attach_game(game)` is called on mount so it picks up the existing
+   ViewModel without a fresh /view fetch.
+
+5. **Test fixture refresh** — `legal_orders` was using `{"kind":...}`
+   keys; the actual wire format from `serialize_order` uses `{"type":
+   ...}`. Fixture corrected; `interpret_drag` walks the legal set
+   matching by `type` field.
+
+### Original sketch
+
+High-level scope (sketch from initial plan, kept for reference):
 
 - Extend HexBoard with drag-state machine (mousedown on own unit →
   rubber-band arrow → mouseup on target).

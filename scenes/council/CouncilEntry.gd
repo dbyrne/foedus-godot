@@ -14,7 +14,9 @@ extends Control
 const ShellScript      = preload("res://components/CouncilShell.gd")
 const BrassPlateScript = preload("res://components/BrassPlate.gd")
 const NegotiationScene = preload("res://scenes/council/CouncilNegotiation.tscn")
+const OrdersScene      = preload("res://scenes/council/CouncilOrders.tscn")
 const CouncilGameScript = preload("res://scripts/council/CouncilGame.gd")
+const ViewModelScript  = preload("res://scripts/council/ViewModel.gd")
 const GameClientScript = preload("res://scripts/GameClient.gd")
 
 var _game_client: Node = null
@@ -25,6 +27,11 @@ var _create_btn: Button
 var _v0_btn: Button
 var _council_btn: Button
 var _game_id: String = ""
+
+# Phase-driven scene mounting for Council mode.
+var _council_game: Node = null
+var _active_scene: Node = null
+var _active_phase: String = ""
 
 
 func _ready() -> void:
@@ -165,16 +172,47 @@ func _on_v0_pressed() -> void:
 func _on_council_pressed() -> void:
 	if _game_id == "":
 		return
-	# Instantiate the Negotiation scene with a CouncilGame controller.
-	# Add it as a sibling to this entry; hide self.
-	var neg = NegotiationScene.instantiate()
-	get_tree().root.add_child(neg)
-	var game = CouncilGameScript.new()
-	add_child(game)
-	game.attach(_game_client, _game_id, 0)
-	neg.attach_game(game)
-	game.refresh_view()
+	_council_game = CouncilGameScript.new()
+	add_child(_council_game)
+	_council_game.attach(_game_client, _game_id, 0)
+	if _council_game.has_signal("phase_transition"):
+		_council_game.phase_transition.connect(_on_phase_transition)
+	# Mount Negotiation by default; the first /view response will fire
+	# phase_transition and swap if needed.
+	_mount_scene_for_phase(ViewModelScript.PHASE_NEGOTIATION)
+	_council_game.refresh_view()
 	visible = false
+
+
+func _on_phase_transition(from_phase: String, to_phase: String) -> void:
+	if to_phase == _active_phase:
+		return
+	_mount_scene_for_phase(to_phase)
+
+
+func _mount_scene_for_phase(phase: String) -> void:
+	if _active_scene != null:
+		_active_scene.queue_free()
+		_active_scene = null
+	var packed: PackedScene = null
+	match phase:
+		ViewModelScript.PHASE_NEGOTIATION:
+			packed = NegotiationScene
+		ViewModelScript.PHASE_ORDERS:
+			packed = OrdersScene
+		ViewModelScript.PHASE_RESOLVED:
+			# Coronation/replay screens land in 2d; for now stay on
+			# Orders so the user can see the final committed state.
+			packed = OrdersScene
+		_:
+			packed = NegotiationScene
+	if packed == null:
+		return
+	_active_scene = packed.instantiate()
+	get_tree().root.add_child(_active_scene)
+	_active_phase = phase
+	if _active_scene.has_method("attach_game") and _council_game != null:
+		_active_scene.attach_game(_council_game)
 
 
 # --- Game client signals -----------------------------------------------
