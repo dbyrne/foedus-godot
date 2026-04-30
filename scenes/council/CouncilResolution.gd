@@ -26,6 +26,7 @@ const HexBoardScript     = preload("res://components/HexBoard.gd")
 const TensionScript      = preload("res://components/TensionMeter.gd")
 const BrassPlateScript   = preload("res://components/BrassPlate.gd")
 const CombatBeatScript   = preload("res://components/CombatBeat.gd")
+const UnitPieceScript    = preload("res://components/UnitPiece.gd")
 const ViewModelScript    = preload("res://scripts/council/ViewModel.gd")
 const TimelineScript     = preload("res://scripts/council/ResolutionTimeline.gd")
 
@@ -128,17 +129,41 @@ func _play_next_event(idx: int) -> void:
 
 
 func _play_move_event(ev: Dictionary, idx: int) -> void:
-	# Visual: unit piece lerps along the hex line. We keep it simple:
-	# a CombatBeat-style halo at the destination + a brief delay.
-	# Phase 3 will add a real per-unit lerp by tracking individual
-	# UnitPiece nodes.
+	# Phase 3: ghost UnitPiece lerps from src → dest while the source
+	# hex's static unit is hidden. After the tween completes the ghost
+	# is freed; the final snapshot swap (in _finish_playback) repopulates
+	# the destination via HexBoard.set_view_model(curr).
+	var from_node: int = int(ev.get("from_node", -1))
 	var to_node: int = int(ev.get("to_node", -1))
+	var from_tile: Dictionary = _prev_view_model.tile_for_node(from_node)
 	var to_tile: Dictionary = _prev_view_model.tile_for_node(to_node)
-	if to_tile.is_empty():
+	if from_tile.is_empty() or to_tile.is_empty():
 		_after_event(idx, 0.0); return
+	var from_pos: Vector2 = Tokens.hex_to_px(int(from_tile["q"]), int(from_tile["r"]))
 	var to_pos: Vector2 = Tokens.hex_to_px(int(to_tile["q"]), int(to_tile["r"]))
-	_spawn_beat(to_pos, Tokens.player_main(int(ev.get("player_id", 0))),
-		MOVE_DURATION)
+	var pid: int = int(ev.get("player_id", 0))
+
+	# Hide the static unit piece on the source hex during the lerp.
+	if _hex_board != null and _hex_board.has_method("set_unit_visible_at"):
+		_hex_board.set_unit_visible_at(from_node, false)
+
+	# Spawn ghost UnitPiece on the arrow layer at src; tween to dest.
+	var ghost = UnitPieceScript.new()
+	ghost.player_id = pid
+	# Best-effort label lookup from prev view-model.
+	var unit_dict: Dictionary = _prev_view_model.unit_by_id(int(ev.get("unit_id", -1)))
+	if not unit_dict.is_empty():
+		ghost.label = _prev_view_model._label_for_unit(int(unit_dict["id"]))
+	ghost.piece_size = 26
+	ghost.position = from_pos
+	_arrow_layer.add_child(ghost)
+
+	var t := create_tween()
+	t.tween_property(ghost, "position", to_pos, MOVE_DURATION
+		).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	t.tween_callback(ghost.queue_free)
+	# Subtle landing beat at the destination.
+	_spawn_beat(to_pos, Tokens.player_main(pid), MOVE_DURATION * 0.6)
 	_after_event(idx, MOVE_DURATION)
 
 
