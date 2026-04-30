@@ -393,7 +393,44 @@ Estimated 5 tasks, ~3–5 days.
 
 ## Sub-phase 2c · Resolution playback
 
-Detailed plan written when 2b merges. High-level scope:
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Shipped with these specifics:
+
+1. **ResolutionTimeline** is pure-data RefCounted — diffs two view
+   payloads and yields events {move, dislodge, ownership, leverage,
+   score}. Foedus's resolution log isn't transmitted (deliberate wire
+   omission), so the diff approach is the only way to reconstruct
+   what happened. Six unit-test cases cover each event kind
+   independently + an identical-snapshots null case.
+
+2. **CombatBeat** is a Node2D with a `play(duration)` self-tween that
+   animates radial expansion + crater + fade, then queue_free()'s.
+   Sibling pattern lets CouncilResolution spawn many short-lived
+   beats without managing their lifecycle.
+
+3. **CouncilResolution** schedules events sequentially via chained
+   Tweens (each event creates a tween that fires the next event on
+   completion). Move events render a CombatBeat in the player's
+   color at the destination; dislodges render a blood-red beat at
+   the source; leverage events render a brief gold thread between
+   the two players' homes.
+
+4. **Auto-mount of Resolution between turns** is not yet wired in
+   CouncilEntry's phase router — Resolution is invoked
+   programmatically via `play_between(prev_view, curr_view)`. The
+   auto-flow (detect turn number increase → fetch /history snapshots
+   → mount Resolution → on `playback_finished` mount next
+   Negotiation) lands in 2d.
+
+5. **Score / ownership events** are surfaced as data but don't yet
+   have dedicated visuals — they're implied by the move/dislodge
+   beats. Phase 3 polish: floating "+N" wax-seal motes from each
+   scoring player's home, brief tile-color fade for ownership flips.
+
+### Original sketch
+
+High-level scope (sketch from initial plan, kept for reference):
 
 - New `ResolutionTimeline.gd` (pure logic, unit-testable) takes two
   consecutive snapshots and produces an event list with timestamps.
