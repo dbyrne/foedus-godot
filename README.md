@@ -70,12 +70,19 @@ scripts/test_e2e.gd           online:  drives a real play-server through
 
 ## Tests
 
-Two headless tests, both runnable via the Godot CLI.
+Three headless tests, all runnable via the Godot CLI.
 
 **Smoke (offline, ~1s):** loads scripts and the main scene, verifies the
 expected child nodes exist.
 ```sh
 godot --headless --script res://scripts/test_smoke.gd
+```
+
+**Phase 1 primitives (offline, ~2s):** loads + instantiates every War
+Council component (`components/*.gd`) and verifies the Tokens autoload
+constants. Run after touching anything in `components/`.
+```sh
+godot --headless --script res://scripts/test_phase1_primitives.gd
 ```
 
 **E2E (online, ~3s):** start a play-server in another terminal, then run
@@ -86,6 +93,28 @@ foedus play-server start --port 8090
 # Terminal 2
 godot --headless --script res://scripts/test_e2e.gd
 ```
+
+## UI rebuild — visual primitives (Phase 1)
+
+The current `scenes/Main.tscn` is the v0 game UI. A "War Council"
+visual rebuild is in progress; see `docs/specs/2026-04-29-ui-rebuild-phase1-primitives.md`.
+
+Phase 1 ships **only the primitives + theme tokens** (no game-screen
+changes). To inspect the components visually, open the demo scene in
+the editor and run it (F6 with the scene focused):
+
+```
+scenes/Phase1Demo.tscn
+```
+
+Phase 1 deliverables on `main`:
+
+- `scripts/Tokens.gd` — autoload with palette, font paths, hex math.
+- `fonts/` — bundled Playfair Display, Cormorant Garamond, IBM Plex
+  Sans, JetBrains Mono (variable; OFL-1.1).
+- `components/` — nine `.gd` primitives (`CouncilShell`, `Crest`,
+  `UnitPiece`, `CouncilHex`, `BrassPlate`, `TensionMeter`,
+  `WaxEnvelope`, `ScalesOfLeverage`, `Throne`).
 
 ## License
 
