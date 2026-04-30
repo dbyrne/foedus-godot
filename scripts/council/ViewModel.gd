@@ -11,11 +11,17 @@ class_name ViewModel
 ## game_server/session.py as of 2026-04-29 (see
 ## tests/fixtures/view_payload_negotiation.gd).
 ##
-## NOTE: foedus's GameState has a `phase` enum (NEGOTIATION / ORDERS /
-## RESOLVED) but it is deliberately omitted from the wire format. We
-## infer the phase from `state.chat_done` + `submitted` instead.
-## A 1-line addition to wire.py would expose it cleanly; revisit if
-## the inference proves fragile.
+## NOTE on phase routing: foedus's engine never actually transitions
+## `state.phase` to `Phase.ORDERS` — `finalize_round` always resets to
+## `NEGOTIATION` (see foedus's
+## docs/superpowers/specs/2026-04-28-press-driver-design.md). The
+## driver sequences the two UI phases. Our UI reads two derived
+## signals exposed in the view payload:
+##   - `chat_phase_complete` (bool): all alive players have signaled
+##     chat-done. The press round is locked; clients should be
+##     drafting orders.
+##   - `submitted` (bool): I've submitted my orders this turn.
+## Plus `is_terminal` for the resolved end-state.
 ##
 ## Phase 2 spec: docs/specs/2026-04-29-ui-rebuild-phase2-screens.md
 ##
@@ -55,17 +61,20 @@ func num_players() -> int:
 # --- Phase routing ------------------------------------------------------
 
 func phase() -> String:
-	## Inferred from chat_done + submitted because wire.py omits the
-	## engine's `phase` field.
+	## Reads `chat_phase_complete` (server-derived; flips when ALL alive
+	## players have signaled chat-done — the canonical press → orders
+	## boundary) and `submitted` from the view payload.
 	if is_terminal():
 		return PHASE_RESOLVED
-	var chat_done: Array = _state.get("chat_done", [])
-	var me := my_player_id()
 	if bool(_raw.get("submitted", false)):
 		return PHASE_ORDERS
-	if me in chat_done:
+	if bool(_raw.get("chat_phase_complete", false)):
 		return PHASE_ORDERS
 	return PHASE_NEGOTIATION
+
+
+func chat_phase_complete() -> bool:
+	return bool(_raw.get("chat_phase_complete", false))
 
 
 func awaiting_humans() -> Array:
@@ -160,6 +169,18 @@ func tile_at_coord(q: int, r: int) -> Dictionary:
 
 func my_units() -> Array:
 	return _raw.get("your_units", [])
+
+
+func units_owned_by(pid: int) -> Array:
+	## All units (any player) currently owned by `pid`. Returns dicts
+	## with shape {"id", "owner", "location"} — same shape as the wire
+	## state.units entries.
+	var out: Array = []
+	for uid_str in _state.get("units", {}).keys():
+		var u: Dictionary = _state["units"][uid_str]
+		if int(u.get("owner", -1)) == pid:
+			out.append(u)
+	return out
 
 
 func unit_by_id(uid: int) -> Dictionary:

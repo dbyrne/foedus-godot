@@ -100,7 +100,8 @@ func seal_intent() -> void:
 func _resolve_aid_payload() -> Array:
 	## Convert PressController's per-player aid_targets into actual
 	## AidSpend dicts by picking the first owned unit of each recipient
-	## and a Hold order against it. Phase 2b will refine.
+	## and a Hold order against it. Phase 2b will refine to per-unit
+	## targeting via the order-entry UI.
 	var out: Array = []
 	if view_model == null or press == null:
 		return out
@@ -108,12 +109,10 @@ func _resolve_aid_payload() -> Array:
 		var pid: int = int(spec.get("_recipient_pid", -1))
 		if pid < 0:
 			continue
-		var target_unit_id := -1
-		for uid_str in view_model._state.get("units", {}).keys():
-			var u: Dictionary = view_model._state["units"][uid_str]
-			if int(u.get("owner", -1)) == pid:
-				target_unit_id = int(u["id"])
-				break
+		var owned: Array = view_model.units_owned_by(pid)
+		if owned.is_empty():
+			continue
+		var target_unit_id: int = int(owned[0].get("id", -1))
 		if target_unit_id < 0:
 			continue
 		out.append({

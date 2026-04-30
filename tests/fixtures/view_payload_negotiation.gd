@@ -93,6 +93,9 @@ static func negotiation_view() -> Dictionary:
 		},
 		"awaiting_humans": [0],
 		"submitted": false,
+		# Players 2 and 3 have signaled chat-done; 0 (me) and 1 haven't.
+		# So chat_phase_complete = false (need ALL alive players done).
+		"chat_phase_complete": false,
 		"is_terminal": false,
 		"detente_reached": false,
 		"winner": null,
@@ -112,10 +115,11 @@ static func negotiation_view() -> Dictionary:
 
 
 static func orders_view() -> Dictionary:
-	# Same as negotiation, but I (p0) am in chat_done — engine has
-	# advanced past press for me. ViewModel should infer phase = ORDERS.
+	# Press round complete for everyone — engine flips
+	# `chat_phase_complete` to true. ViewModel should report phase=ORDERS.
 	var v := negotiation_view()
 	v["state"]["chat_done"] = [0, 1, 2, 3]
+	v["chat_phase_complete"] = true
 	return v
 
 

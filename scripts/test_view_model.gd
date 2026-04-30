@@ -19,6 +19,7 @@ func _initialize() -> void:
 	failures += _test_phase_inference_orders()
 	failures += _test_terminal_state()
 	failures += _test_my_units_and_legal_orders()
+	failures += _test_units_owned_by()
 	failures += _test_aid_and_leverage()
 	failures += _test_stance_lookup()
 	failures += _test_betrayals_passthrough()
@@ -52,23 +53,52 @@ func _test_basic_accessors() -> int:
 
 
 func _test_phase_inference_negotiation() -> int:
-	# I (p0) am NOT in chat_done and have NOT submitted → NEGOTIATION.
+	# chat_phase_complete=false → NEGOTIATION.
 	var vm := ViewModel.new(Fixtures.negotiation_view())
-	return _expect(
-		"phase=negotiation when I haven't sealed",
+	var f := 0
+	f += _expect(
+		"phase=negotiation when chat phase incomplete",
 		vm.phase() == "negotiation",
 		vm.phase()
 	)
+	f += _expect(
+		"chat_phase_complete passthrough",
+		not vm.chat_phase_complete()
+	)
+	return f
 
 
 func _test_phase_inference_orders() -> int:
-	# I'm in chat_done → past press → ORDERS.
+	# chat_phase_complete=true → ORDERS.
 	var vm := ViewModel.new(Fixtures.orders_view())
-	return _expect(
-		"phase=orders when chat_done contains me",
+	var f := 0
+	f += _expect(
+		"phase=orders when chat_phase_complete",
 		vm.phase() == "orders",
 		vm.phase()
 	)
+	f += _expect(
+		"chat_phase_complete=true",
+		vm.chat_phase_complete()
+	)
+	return f
+
+
+func _test_units_owned_by() -> int:
+	var vm := ViewModel.new(Fixtures.negotiation_view())
+	var f := 0
+	# Fixture: p0 has units 0 and 2; p1 has unit 1; p2/p3 none.
+	f += _expect("p0 owns 2 units", vm.units_owned_by(0).size() == 2,
+		str(vm.units_owned_by(0).size()))
+	f += _expect("p1 owns 1 unit", vm.units_owned_by(1).size() == 1)
+	f += _expect("p2 owns 0 units", vm.units_owned_by(2).size() == 0)
+	# Returned shape passes through wire format.
+	var p1_units := vm.units_owned_by(1)
+	f += _expect(
+		"unit dict has owner field",
+		not p1_units.is_empty() and int(p1_units[0]["owner"]) == 1
+	)
+	return f
 
 
 func _test_terminal_state() -> int:
