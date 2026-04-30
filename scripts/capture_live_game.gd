@@ -10,7 +10,7 @@ extends SceneTree
 ##                       --resolution 1280x900 --quit-after 1500
 ##
 
-const GAME_ID := "2dbb6162-5b92-4b14-a549-ece8e4a547c3"
+const GAME_ID := "9f8d5286-7cdc-4d47-b7fd-08f5a93fa15d"
 const SERVER  := "http://127.0.0.1:8090"
 
 
