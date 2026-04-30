@@ -127,9 +127,12 @@ func tile_for_node(node_id: int) -> Dictionary:
 	for uid_str in _state.get("units", {}).keys():
 		var u: Dictionary = _state["units"][uid_str]
 		if int(u.get("location", -1)) == node_id:
+			# CouncilHex (Phase 1) consumes {"player", "label"} for the
+			# unit dict. Stay consistent with that shape so HexBoard can
+			# pass the unit through verbatim.
 			unit = {
 				"id": int(u["id"]),
-				"owner": int(u["owner"]),
+				"player": int(u["owner"]),
 				"label": _label_for_unit(int(u["id"])),
 			}
 			break
