@@ -121,10 +121,11 @@ func _play_next_event(idx: int) -> void:
 			_play_dislodge_event(ev, idx)
 		"leverage":
 			_play_leverage_event(ev, idx)
+		"ownership":
+			_play_ownership_event(ev, idx)
+		"score":
+			_play_score_event(ev, idx)
 		_:
-			# ownership and score don't have dedicated visuals in 2c
-			# (they're implied by the move/dislodge animations); skip
-			# without a beat.
 			_after_event(idx, 0.0)
 
 
@@ -198,6 +199,44 @@ func _play_leverage_event(ev: Dictionary, idx: int) -> void:
 	_after_event(idx, LEVERAGE_FLASH)
 
 
+func _play_ownership_event(ev: Dictionary, idx: int) -> void:
+	# Brief tile flash in the new owner's color on the captured hex.
+	var node_id: int = int(ev.get("node_id", -1))
+	var to_player: int = int(ev.get("to_player", -1))
+	var tile: Dictionary = _prev_view_model.tile_for_node(node_id)
+	if tile.is_empty() or to_player < 0:
+		_after_event(idx, 0.0); return
+	var pos: Vector2 = Tokens.hex_to_px(int(tile["q"]), int(tile["r"]))
+	var color := Tokens.player_main(to_player)
+	# Soft expanding ring rather than the harder CombatBeat — this is a
+	# claim, not a kill.
+	var ring := _OwnershipRing.new()
+	ring.position = pos
+	ring.color = color
+	_arrow_layer.add_child(ring)
+	ring.play(BEAT_DURATION * 0.8)
+	_after_event(idx, BEAT_DURATION * 0.6)
+
+
+func _play_score_event(ev: Dictionary, idx: int) -> void:
+	# Floating "+N" wax-seal mote rising from the player's home hex.
+	var pid: int = int(ev.get("player_id", -1))
+	var delta: float = float(ev.get("delta", 0.0))
+	if pid < 0 or abs(delta) < 0.01:
+		_after_event(idx, 0.0); return
+	var origin: Vector2 = _home_pos_for_player(pid)
+	if origin == Vector2.ZERO:
+		_after_event(idx, 0.0); return
+	var mote := _ScoreMote.new()
+	mote.origin = origin
+	mote.player_color = Tokens.player_main(pid)
+	mote.delta_text = ("+%d" % int(round(delta))) if delta > 0 \
+		else ("%d" % int(round(delta)))
+	_arrow_layer.add_child(mote)
+	mote.play(BEAT_DURATION * 1.6)
+	_after_event(idx, BEAT_DURATION * 0.4)
+
+
 func _after_event(idx: int, base_dur: float) -> void:
 	var t := create_tween()
 	t.tween_interval(base_dur + INTER_EVENT_GAP)
@@ -248,3 +287,65 @@ class _ThreadFlash extends Node2D:
 			return
 		var c := Color(color.r, color.g, color.b, alpha)
 		draw_line(from_pos, to_pos, c, 2.0)
+
+
+# --- Ownership claim: soft expanding hex-radius ring ------------------
+
+class _OwnershipRing extends Node2D:
+	var color: Color = Color(1, 1, 1, 1)
+	var t: float = 0.0 :
+		set(value): t = value; queue_redraw()
+
+	func play(duration: float) -> void:
+		var tween := create_tween()
+		tween.tween_property(self, "t", 1.0, duration)
+		tween.tween_callback(queue_free)
+
+	func _draw() -> void:
+		var radius: float = lerp(8.0, 26.0, t)
+		var alpha: float = (1.0 - t) * 0.85
+		if alpha <= 0.0:
+			return
+		var c := Color(color.r, color.g, color.b, alpha)
+		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 32, c, 2.0, true)
+
+
+# --- Score mote: "+N" rising from a home hex --------------------------
+
+class _ScoreMote extends Node2D:
+	var origin: Vector2 = Vector2.ZERO
+	var player_color: Color = Color(1, 1, 1, 1)
+	var delta_text: String = "+0"
+	var t: float = 0.0 :
+		set(value): t = value; queue_redraw()
+	var _font: Font = null
+
+	func _ready() -> void:
+		_font = load(Tokens.FONT_DISPLAY) as Font
+		position = origin
+
+	func play(duration: float) -> void:
+		var tween := create_tween()
+		tween.tween_property(self, "t", 1.0, duration)
+		tween.tween_callback(queue_free)
+
+	func _draw() -> void:
+		# Fade in fast, fade out slow; rise 32px upward over t.
+		var rise: float = -lerp(2.0, 32.0, t)
+		var alpha: float
+		if t < 0.2:
+			alpha = t / 0.2
+		else:
+			alpha = 1.0 - ((t - 0.2) / 0.8)
+		alpha = clamp(alpha * 0.95, 0.0, 0.95)
+		if alpha <= 0.0 or _font == null:
+			return
+		# Soft seal-circle behind the text.
+		var seal_color := Color(player_color.r, player_color.g, player_color.b, alpha * 0.4)
+		draw_circle(Vector2(0, rise), 12.0, seal_color)
+		var text_color := Color(0.957, 0.824, 0.478, alpha)  # CANDLE
+		var size: int = 16
+		var ts := _font.get_string_size(delta_text,
+			HORIZONTAL_ALIGNMENT_CENTER, -1, size)
+		draw_string(_font, Vector2(-ts.x * 0.5, rise + ts.y * 0.35),
+			delta_text, HORIZONTAL_ALIGNMENT_CENTER, -1, size, text_color)
