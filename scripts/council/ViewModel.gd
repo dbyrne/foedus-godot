@@ -15,12 +15,15 @@ class_name ViewModel
 ## `state.phase` to `Phase.ORDERS` — `finalize_round` always resets to
 ## `NEGOTIATION` (see foedus's
 ## docs/superpowers/specs/2026-04-28-press-driver-design.md). The
-## driver sequences the two UI phases. Our UI reads two derived
-## signals exposed in the view payload:
-##   - `chat_phase_complete` (bool): all alive players have signaled
-##     chat-done. The press round is locked; clients should be
-##     drafting orders.
-##   - `submitted` (bool): I've submitted my orders this turn.
+## driver sequences the two UI phases. We compute the equivalent of
+## `is_chat_phase_complete(state)` client-side from
+## `state.chat_done` ⊇ alive players. (The /chat endpoint's response
+## carries that bool but the /view payload does NOT include it —
+## confirmed empirically against a live play-server.)
+##   - `chat_phase_complete()` (computed): every alive player signaled
+##     chat-done. The press round is locked; clients should be drafting
+##     orders.
+##   - `submitted` (in view): I've submitted my orders this turn.
 ## Plus `is_terminal` for the resolved end-state.
 ##
 ## Phase 2 spec: docs/specs/2026-04-29-ui-rebuild-phase2-screens.md
@@ -61,20 +64,39 @@ func num_players() -> int:
 # --- Phase routing ------------------------------------------------------
 
 func phase() -> String:
-	## Reads `chat_phase_complete` (server-derived; flips when ALL alive
-	## players have signaled chat-done — the canonical press → orders
-	## boundary) and `submitted` from the view payload.
+	## Computes the equivalent of foedus.press.is_chat_phase_complete
+	## client-side because the view payload doesn't expose that bool
+	## directly (it's only returned from /chat responses).
 	if is_terminal():
 		return PHASE_RESOLVED
 	if bool(_raw.get("submitted", false)):
 		return PHASE_ORDERS
-	if bool(_raw.get("chat_phase_complete", false)):
+	if chat_phase_complete():
 		return PHASE_ORDERS
 	return PHASE_NEGOTIATION
 
 
 func chat_phase_complete() -> bool:
-	return bool(_raw.get("chat_phase_complete", false))
+	## True iff every alive player has signaled chat-done. Mirrors
+	## foedus.press.is_chat_phase_complete(state). Normalizes to int
+	## set membership because JSON-parsed integers may arrive as floats.
+	var chat_done_raw: Array = _state.get("chat_done", [])
+	var eliminated_raw: Array = _state.get("eliminated", [])
+	var chat_done: Dictionary = {}
+	for x in chat_done_raw:
+		chat_done[int(x)] = true
+	var eliminated: Dictionary = {}
+	for x in eliminated_raw:
+		eliminated[int(x)] = true
+	var n := num_players()
+	if n <= 0:
+		return false
+	for pid in n:
+		if eliminated.has(pid):
+			continue
+		if not chat_done.has(pid):
+			return false
+	return true
 
 
 func awaiting_humans() -> Array:

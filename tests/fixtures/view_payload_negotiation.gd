@@ -97,8 +97,8 @@ static func negotiation_view() -> Dictionary:
 		"awaiting_humans": [0],
 		"submitted": false,
 		# Players 2 and 3 have signaled chat-done; 0 (me) and 1 haven't.
-		# So chat_phase_complete = false (need ALL alive players done).
-		"chat_phase_complete": false,
+		# ViewModel computes is_chat_phase_complete client-side from
+		# state.chat_done — see ViewModel.chat_phase_complete().
 		"is_terminal": false,
 		"detente_reached": false,
 		"winner": null,
@@ -118,11 +118,11 @@ static func negotiation_view() -> Dictionary:
 
 
 static func orders_view() -> Dictionary:
-	# Press round complete for everyone — engine flips
-	# `chat_phase_complete` to true. ViewModel should report phase=ORDERS.
+	# Press round complete for everyone — chat_done covers all alive
+	# players. ViewModel.chat_phase_complete() should compute true,
+	# and phase() should report PHASE_ORDERS.
 	var v := negotiation_view()
 	v["state"]["chat_done"] = [0, 1, 2, 3]
-	v["chat_phase_complete"] = true
 	return v
 
 
