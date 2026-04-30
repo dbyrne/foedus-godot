@@ -448,7 +448,49 @@ Estimated 6–8 tasks, ~5–7 days.
 
 ## Sub-phase 2d · Bookends + flag-day swap
 
-Detailed plan written when 2c merges. High-level scope:
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Shipped:
+
+1. **CouncilCoronation**: large candle-yellow "VICTORY" title, italic
+   subtitle ("by treaty — détente prevailed" / "by force of arms"),
+   crests for each winner side-by-side, FINAL SCORES grid with
+   sovereigns highlighted, View Replay + Exit buttons.
+
+2. **CouncilPairwise**: bilateral dossier — two crests with
+   ScalesOfLeverage between them; the scales' tilt and load reflect
+   the actual `aid_given[(me, them)]` ledger; leverage delta shown
+   prominently with "(you owe me)" / "(I owe you)" / "even" suffix;
+   stance labels for both directions; betrayal log filtered to this
+   pair. Auto-focuses the player with largest |leverage| if no
+   explicit `set_focus_player(pid)` call.
+
+3. **CouncilReplay**: scrub-through-history viewer. Loads
+   `/games/<id>/history` to learn the snapshot list, fetches each
+   snapshot via `/history/<turn>/view/<player>` on demand (cached).
+   Prev / Next / scrub-slider step through; "Play Resolution N→N+1"
+   mounts the existing CouncilResolution scene over the current
+   snapshot pair.
+
+4. **Auto-resolution router**: CouncilEntry now subscribes to
+   CouncilGame.view_changed, caches the previous view's payload, and
+   when a new view's `turn` is greater than the cached one, mounts
+   CouncilResolution.play_between(prev, curr). On
+   `playback_finished`, the resolution scene queue_frees and the
+   underlying Negotiation/Orders screen resumes visibility.
+
+5. **Flag-day swap**:
+   - `project.godot`: `run/main_scene` flipped from
+     `res://scenes/Main.tscn` to `res://scenes/council/CouncilEntry.tscn`.
+   - CouncilEntry's "v0 mode" branch removed; the launcher now offers
+     a single "Take the throne" button.
+   - Legacy `Main.tscn` / `Main.gd` / `HexMap.gd` / `GameClient.gd` /
+     `SoundManager.gd` files remain in the repo for archeological
+     reference; they're no longer entry points.
+
+### Original sketch
+
+High-level scope (sketch from initial plan, kept for reference):
 
 - CouncilPairwise: bilateral dossier — opens on sociogram crest click.
   Shows ScalesOfLeverage + leverage history graph + recent supports

@@ -14,7 +14,7 @@ config/name="foedus-godot"
 config/description="Godot frontend for foedus local play. Talks to a foedus
 play-server (Python, fastapi) over HTTP. Engine + rules stay in Python; this
 project is purely visualization and input."
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/council/CouncilEntry.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
 [autoload]
