@@ -2,8 +2,8 @@ extends Node2D
 class_name CouncilHex
 ##
 ## A hex tile rendered in the War Council style — sculpted face with
-## terrain decals, optional supply marker (chest at supply=1, crown at
-## supply=2), home banner, owner-color ring, selection halo, and
+## terrain decals, optional supply badge (one/two pips), home banner,
+## owner-color ring, selection halo, and
 ## optional unit piece child.
 ##
 ## Tile data is passed as a Dictionary (not yet a Resource) so the
@@ -124,27 +124,10 @@ func _draw() -> void:
 				for i in wave.size() - 1:
 					draw_line(wave[i], wave[i + 1], Color(Tokens.BONE_DIM, 0.5), 0.8)
 
-	# Supply marker
+	# Supply badge: one pip is regular supply, two pips is high-value supply.
 	var supply := int(tile.get("supply", 0))
-	if supply == 1:
-		var anchor := Vector2(hr - 12, -hr + 10)
-		draw_rect(Rect2(anchor + Vector2(-5, -3), Vector2(10, 7)),
-			Tokens.BRASS_DIM, true)
-		draw_rect(Rect2(anchor + Vector2(-5, -3), Vector2(10, 7)),
-			Tokens.INK, false, 0.5)
-		draw_rect(Rect2(anchor + Vector2(-5, -5), Vector2(10, 3)),
-			Tokens.BRASS, true)
-	elif supply == 2:
-		var anchor := Vector2(hr - 13, -hr + 10)
-		var crown := PackedVector2Array([
-			anchor + Vector2(-7, 4), anchor + Vector2(-7, -2),
-			anchor + Vector2(0, -8), anchor + Vector2(7, -2),
-			anchor + Vector2(7, 4),
-		])
-		draw_colored_polygon(crown, Tokens.BRASS)
-		for i in crown.size():
-			draw_line(crown[i], crown[(i + 1) % crown.size()], Tokens.INK, 1.0)
-		draw_circle(anchor + Vector2(0, -1), 2.5, Tokens.CANDLE)
+	if supply > 0:
+		_draw_supply_badge(Vector2.ZERO, supply)
 
 	# Home banner
 	var home = tile.get("home")
@@ -186,6 +169,19 @@ func _draw_hexagon_ring(center: Vector2, radius: float, color: Color, width: flo
 	var pts := _hex_corners(center, radius)
 	for i in pts.size():
 		draw_line(pts[i], pts[(i + 1) % pts.size()], color, width)
+
+
+func _draw_supply_badge(center: Vector2, supply: int) -> void:
+	var radius := 8.0
+	draw_circle(center + Vector2(0, 1.5), radius, Color(0, 0, 0, 0.4))
+	draw_circle(center, radius, Tokens.BRASS)
+	draw_arc(center, radius, 0, TAU, 24, Tokens.INK, 1.0)
+	if supply >= 2:
+		draw_arc(center, radius + 2.0, 0, TAU, 24, Tokens.CANDLE, 1.0)
+		draw_circle(center + Vector2(-3.0, 0), 2.0, Tokens.INK)
+		draw_circle(center + Vector2(3.0, 0), 2.0, Tokens.INK)
+	else:
+		draw_circle(center, 2.2, Tokens.INK)
 
 
 func _hex_corners(center: Vector2, radius: float) -> PackedVector2Array:

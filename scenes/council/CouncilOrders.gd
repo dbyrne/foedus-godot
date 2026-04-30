@@ -39,6 +39,7 @@ var _intents_row: HBoxContainer
 var _root_layer: Control = null
 var _arrow_layer: Node2D = null
 var _arrow_nodes: Array = []
+var _intent_arrow_nodes: Array = []
 
 
 func _ready() -> void:
@@ -95,6 +96,7 @@ func _build_layout() -> void:
 	# the same coordinate space (same parent + same position).
 	_arrow_layer = Node2D.new()
 	_arrow_layer.position = _hex_board.position
+	_arrow_layer.z_index = 1000
 	board_wrap.add_child(_arrow_layer)
 
 	_panel = OrdersPanelScript.new()
@@ -107,7 +109,7 @@ func _build_layout() -> void:
 
 	# Declared intents row — context only, not interactive in 2b.
 	var intents_label = BrassPlateScript.new()
-	intents_label.text = "DECLARED INTENTS (locked)"
+	intents_label.text = "DECLARED INTENTS"
 	intents_label.font_size_px = 11
 	intents_label.position = Vector2(60, 700)
 	_root_layer.add_child(intents_label)
@@ -136,59 +138,100 @@ func _on_view_changed(vm) -> void:
 
 
 func _render_intents(vm) -> void:
+	if _intents_row == null:
+		return
 	for c in _intents_row.get_children():
 		c.queue_free()
 	for intent in vm.declared_intents():
-		var plate = BrassPlateScript.new()
-		var pid := int(intent.get("player_id", -1))
-		var unit_id := int(intent.get("unit_id", -1))
-		var ord = intent.get("declared_order", {})
-		var kind := String(ord.get("type", "?"))
-		plate.text = "%s u%d %s" % [Tokens.faction_tag(pid), unit_id, kind.to_upper()]
-		plate.font_size_px = 9
-		_intents_row.add_child(plate)
+		_add_intent_plate(intent, false)
+	if council_game != null and council_game.press != null:
+		for draft in council_game.press.intents:
+			var local_intent: Dictionary = draft.duplicate(true)
+			local_intent["player_id"] = vm.my_player_id()
+			_add_intent_plate(local_intent, true)
+
+
+func _add_intent_plate(intent: Dictionary, is_draft: bool) -> void:
+	var plate = BrassPlateScript.new()
+	var pid := int(intent.get("player_id", -1))
+	var unit_id := int(intent.get("unit_id", -1))
+	var ord = intent.get("declared_order", {})
+	var kind := String(ord.get("type", ord.get("kind", "?")))
+	var detail := ""
+	if ord.has("dest"):
+		detail = "->%s" % str(ord["dest"])
+	elif ord.has("target_unit"):
+		detail = " u%s" % str(ord["target_unit"])
+	elif ord.has("target"):
+		detail = " u%s" % str(ord["target"])
+	var suffix := " DRAFT" if is_draft else ""
+	plate.text = "%s u%d %s%s%s" % [
+		Tokens.faction_tag(pid), unit_id, kind.to_upper(), detail, suffix
+	]
+	plate.font_size_px = 9
+	_intents_row.add_child(plate)
 
 
 func _refresh_arrows() -> void:
 	if _arrow_layer == null or order_controller == null or council_game == null \
 			or council_game.view_model == null:
 		return
+	for a in _intent_arrow_nodes:
+		a.queue_free()
+	_intent_arrow_nodes.clear()
 	for a in _arrow_nodes:
 		a.queue_free()
 	_arrow_nodes.clear()
 	var vm = council_game.view_model
+	if council_game.press != null:
+		for intent in council_game.press.intents:
+			var intent_unit_id := int(intent.get("unit_id", -1))
+			var intent_ord: Dictionary = intent.get("declared_order", {})
+			var intent_arrow = _make_arrow_for_order(
+				vm, intent_unit_id, intent_ord, true
+			)
+			if intent_arrow != null:
+				_arrow_layer.add_child(intent_arrow)
+				_intent_arrow_nodes.append(intent_arrow)
 	for uid in order_controller.orders.keys():
 		var unit_id: int = int(uid)
-		var src: Dictionary = vm.unit_by_id(unit_id)
-		if src.is_empty():
-			continue
-		var src_node_id: int = int(src.get("location", -1))
-		var src_tile: Dictionary = vm.tile_for_node(src_node_id)
-		var src_pos: Vector2 = Tokens.hex_to_px(int(src_tile["q"]), int(src_tile["r"]))
 		var ord: Dictionary = order_controller.orders[unit_id]
-		var arrow = OrderArrowScript.new()
-		arrow.player_id = vm.my_player_id()
-		arrow.from_pos = src_pos
-		arrow.kind = String(ord.get("type", "Hold"))
-		match arrow.kind:
-			"Move":
-				var dest: int = int(ord.get("dest", src_node_id))
-				var dt: Dictionary = vm.tile_for_node(dest)
-				arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
-			"SupportHold":
-				var t: Dictionary = vm.unit_by_id(int(ord.get("target", -1)))
-				if not t.is_empty():
-					var tt2: Dictionary = vm.tile_for_node(int(t["location"]))
-					arrow.to_pos = Tokens.hex_to_px(int(tt2["q"]), int(tt2["r"]))
-			"SupportMove":
-				var dest2: int = int(ord.get("target_dest", -1))
-				var dt2: Dictionary = vm.tile_for_node(dest2)
-				arrow.from_pos = src_pos
-				arrow.to_pos = Tokens.hex_to_px(int(dt2["q"]), int(dt2["r"]))
-			"Hold":
-				arrow.to_pos = src_pos
-		_arrow_layer.add_child(arrow)
-		_arrow_nodes.append(arrow)
+		var arrow = _make_arrow_for_order(vm, unit_id, ord, false)
+		if arrow != null:
+			_arrow_layer.add_child(arrow)
+			_arrow_nodes.append(arrow)
+
+
+func _make_arrow_for_order(vm, unit_id: int, ord: Dictionary,
+		ghost: bool) -> Node2D:
+	var src: Dictionary = vm.unit_by_id(unit_id)
+	if src.is_empty():
+		return null
+	var src_node_id: int = int(src.get("location", -1))
+	var src_tile: Dictionary = vm.tile_for_node(src_node_id)
+	var src_pos: Vector2 = Tokens.hex_to_px(int(src_tile["q"]), int(src_tile["r"]))
+	var arrow = OrderArrowScript.new()
+	arrow.player_id = vm.my_player_id()
+	arrow.from_pos = src_pos
+	arrow.kind = String(ord.get("type", "Hold"))
+	arrow.ghost = ghost
+	match arrow.kind:
+		"Move":
+			var dest: int = int(ord.get("dest", src_node_id))
+			var dt: Dictionary = vm.tile_for_node(dest)
+			arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
+		"SupportHold":
+			var t: Dictionary = vm.unit_by_id(int(ord.get("target", -1)))
+			if not t.is_empty():
+				var tt: Dictionary = vm.tile_for_node(int(t["location"]))
+				arrow.to_pos = Tokens.hex_to_px(int(tt["q"]), int(tt["r"]))
+		"SupportMove":
+			var dest2: int = int(ord.get("target_dest", -1))
+			var dt2: Dictionary = vm.tile_for_node(dest2)
+			arrow.to_pos = Tokens.hex_to_px(int(dt2["q"]), int(dt2["r"]))
+		"Hold":
+			arrow.to_pos = src_pos
+	return arrow
 
 
 # --- Signal handlers ----------------------------------------------------
@@ -197,13 +240,38 @@ func _on_drag_proposed(from_unit_id: int, to_node_id: int) -> void:
 	if order_controller == null or council_game == null:
 		return
 	var ord: Dictionary = OrderControllerScript.interpret_drag(
-		council_game.view_model, from_unit_id, to_node_id
+		council_game.view_model, from_unit_id, to_node_id,
+		_support_context_intents()
 	)
 	if ord.is_empty():
 		# No legal order matched — silently drop the gesture.
 		return
 	order_controller.propose_order(from_unit_id, ord)
 	_refresh_arrows()
+
+
+func _support_context_intents() -> Array:
+	var out: Array = []
+	if order_controller == null or council_game == null \
+			or council_game.view_model == null:
+		return out
+	var queued_units := {}
+	for uid in order_controller.orders.keys():
+		var unit_id := int(uid)
+		queued_units[unit_id] = true
+		out.append({
+			"player_id": council_game.view_model.my_player_id(),
+			"unit_id": unit_id,
+			"declared_order": order_controller.orders[uid],
+		})
+	if council_game.press != null:
+		for draft in council_game.press.intents:
+			if not (draft is Dictionary):
+				continue
+			if queued_units.has(int(draft.get("unit_id", -1))):
+				continue
+			out.append(draft)
+	return out
 
 
 func _on_unit_clicked(unit_id: int, button: int) -> void:

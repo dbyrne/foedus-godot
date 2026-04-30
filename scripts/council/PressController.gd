@@ -10,8 +10,8 @@ class_name PressController
 ##      `seed_from_view(vm)` (copies the player's own stance from
 ##      last_press as a starting point).
 ##   2. UI mutations call set_stance / add_intent / etc.
-##   3. On "Seal Intent", the caller serializes via to_press_payload()
-##      and posts to /games/<id>/press.
+##   3. On submit, the caller serializes via to_press_payload() and
+##      posts it through /games/<id>/commit.
 ##   4. On phase transition to ORDERS, this object is discarded.
 ##
 ## Spec: docs/specs/2026-04-29-ui-rebuild-phase2-screens.md
@@ -20,7 +20,7 @@ class_name PressController
 signal updated  # emitted on any state change
 
 var stance: Dictionary = {}    # other_pid → "ally"|"neutral"|"hostile"
-var intents: Array = []        # [{unit_id, declared_order, recipients}]
+var intents: Array = []        # [{unit_id, declared_order, visible_to}]
 var aid_targets: Dictionary = {}  # other_pid → bool (will spend on them)
 var chat_draft: String = ""
 
@@ -47,8 +47,8 @@ func set_stance(other_pid: int, value: String) -> void:
 
 
 func add_intent(unit_id: int, declared_order: Dictionary,
-				recipients: Variant = null) -> void:
-	## `recipients` of null means broadcast (visible_to=null).
+				visible_to: Variant = null) -> void:
+	## `visible_to` of null means broadcast.
 	# Replace any existing intent for the same unit (one declared
 	# order per unit per turn).
 	for i in intents.size():
@@ -58,7 +58,7 @@ func add_intent(unit_id: int, declared_order: Dictionary,
 	intents.append({
 		"unit_id": unit_id,
 		"declared_order": declared_order,
-		"recipients": recipients,
+		"visible_to": visible_to,
 	})
 	updated.emit()
 

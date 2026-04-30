@@ -27,6 +27,8 @@ const CourtPanelScript = preload("res://components/CourtPanel.gd")
 const TensionScript    = preload("res://components/TensionMeter.gd")
 const BrassPlateScript = preload("res://components/BrassPlate.gd")
 const ViewModelScript  = preload("res://scripts/council/ViewModel.gd")
+const OrderControllerScript = preload("res://scripts/council/OrderController.gd")
+const OrderArrowScript = preload("res://components/OrderArrow.gd")
 
 var council_game: Node = null  # CouncilGame
 var _shell: Node = null
@@ -35,6 +37,8 @@ var _court: Node = null
 var _tension: Node = null
 var _intents_row: HBoxContainer
 var _root_layer: Control = null
+var _intent_arrow_layer: Node2D = null
+var _intent_arrow_nodes: Array = []
 
 
 func _ready() -> void:
@@ -86,6 +90,12 @@ func _build_layout() -> void:
 	_hex_board = HexBoardScript.new()
 	_hex_board.position = Vector2(310, 270)
 	board_wrap.add_child(_hex_board)
+	_hex_board.drag_proposed.connect(_on_intent_drag_proposed)
+	_hex_board.unit_clicked.connect(_on_unit_clicked)
+	_intent_arrow_layer = Node2D.new()
+	_intent_arrow_layer.position = _hex_board.position
+	_intent_arrow_layer.z_index = 1000
+	board_wrap.add_child(_intent_arrow_layer)
 
 	# Court panel — right rail
 	_court = CourtPanelScript.new()
@@ -131,9 +141,12 @@ func _on_view_changed(vm) -> void:
 	var tt := float(vm.max_turns())
 	_tension.value = (float(vm.turn()) / tt) if tt > 0 else 0.0
 	_render_intents(vm)
+	_refresh_intent_arrows()
 
 
 func _render_intents(vm) -> void:
+	if _intents_row == null:
+		return
 	for c in _intents_row.get_children():
 		c.queue_free()
 	for intent in vm.declared_intents():
@@ -155,6 +168,81 @@ func _render_intents(vm) -> void:
 		]
 		plate.font_size_px = 9
 		_intents_row.add_child(plate)
+	if council_game != null and council_game.press != null:
+		for draft in council_game.press.intents:
+			var local_intent: Dictionary = draft.duplicate(true)
+			local_intent["player_id"] = vm.my_player_id()
+			_add_intent_plate(local_intent, true)
+
+
+func _add_intent_plate(intent: Dictionary, is_draft: bool) -> void:
+	var plate = BrassPlateScript.new()
+	var pid := int(intent.get("player_id", -1))
+	var unit_id := int(intent.get("unit_id", -1))
+	var ord = intent.get("declared_order", {})
+	var verb := String(ord.get("type", ord.get("kind", "?")))
+	var detail := ""
+	if ord.has("dest"):
+		detail = "->%s" % str(ord["dest"])
+	elif ord.has("target_unit"):
+		detail = " u%s" % str(ord["target_unit"])
+	elif ord.has("target"):
+		detail = " u%s" % str(ord["target"])
+	var suffix := " DRAFT" if is_draft else ""
+	plate.text = "%s u%d %s%s%s" % [
+		Tokens.faction_tag(pid), unit_id, verb.to_upper(), detail, suffix
+	]
+	plate.font_size_px = 9
+	_intents_row.add_child(plate)
+
+
+func _refresh_intent_arrows() -> void:
+	if _intent_arrow_layer == null or council_game == null \
+			or council_game.view_model == null or council_game.press == null:
+		return
+	for arrow in _intent_arrow_nodes:
+		arrow.queue_free()
+	_intent_arrow_nodes.clear()
+	var vm = council_game.view_model
+	for intent in council_game.press.intents:
+		var unit_id := int(intent.get("unit_id", -1))
+		var ord: Dictionary = intent.get("declared_order", {})
+		var arrow = _make_arrow_for_order(vm, unit_id, ord, true)
+		if arrow != null:
+			_intent_arrow_layer.add_child(arrow)
+			_intent_arrow_nodes.append(arrow)
+
+
+func _make_arrow_for_order(vm, unit_id: int, ord: Dictionary,
+		ghost: bool) -> Node2D:
+	var src: Dictionary = vm.unit_by_id(unit_id)
+	if src.is_empty():
+		return null
+	var src_node_id: int = int(src.get("location", -1))
+	var src_tile: Dictionary = vm.tile_for_node(src_node_id)
+	var src_pos := Tokens.hex_to_px(int(src_tile["q"]), int(src_tile["r"]))
+	var arrow = OrderArrowScript.new()
+	arrow.player_id = vm.my_player_id()
+	arrow.from_pos = src_pos
+	arrow.kind = String(ord.get("type", "Hold"))
+	arrow.ghost = ghost
+	match arrow.kind:
+		"Move":
+			var dest: int = int(ord.get("dest", src_node_id))
+			var dt: Dictionary = vm.tile_for_node(dest)
+			arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
+		"SupportHold":
+			var t: Dictionary = vm.unit_by_id(int(ord.get("target", -1)))
+			if not t.is_empty():
+				var tt: Dictionary = vm.tile_for_node(int(t["location"]))
+				arrow.to_pos = Tokens.hex_to_px(int(tt["q"]), int(tt["r"]))
+		"SupportMove":
+			var dest2: int = int(ord.get("target_dest", -1))
+			var dt2: Dictionary = vm.tile_for_node(dest2)
+			arrow.to_pos = Tokens.hex_to_px(int(dt2["q"]), int(dt2["r"]))
+		"Hold":
+			arrow.to_pos = src_pos
+	return arrow
 
 
 # --- Court panel signal handlers (forward to PressController) ----------
@@ -172,6 +260,35 @@ func _on_aid_toggled(other_pid: int, on: bool) -> void:
 func _on_chat_changed(text: String) -> void:
 	if council_game and council_game.press:
 		council_game.press.set_chat(text)
+
+
+func _on_intent_drag_proposed(from_unit_id: int, to_node_id: int) -> void:
+	if council_game == null or council_game.press == null \
+			or council_game.view_model == null:
+		return
+	var ord: Dictionary = OrderControllerScript.interpret_drag(
+		council_game.view_model, from_unit_id, to_node_id,
+		council_game.press.intents
+	)
+	if ord.is_empty():
+		return
+	council_game.press.add_intent(from_unit_id, ord, null)
+	_render_intents(council_game.view_model)
+	_refresh_intent_arrows()
+
+
+func _on_unit_clicked(unit_id: int, button: int) -> void:
+	if button != MOUSE_BUTTON_RIGHT:
+		return
+	if council_game == null or council_game.press == null \
+			or council_game.view_model == null:
+		return
+	var u: Dictionary = council_game.view_model.unit_by_id(unit_id)
+	if u.is_empty() or int(u.get("owner", -1)) != council_game.view_model.my_player_id():
+		return
+	council_game.press.remove_intent(unit_id)
+	_render_intents(council_game.view_model)
+	_refresh_intent_arrows()
 
 
 func _on_seal_pressed() -> void:

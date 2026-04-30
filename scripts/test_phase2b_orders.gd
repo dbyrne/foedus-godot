@@ -32,6 +32,37 @@ func _initialize() -> void:
 		push_error("FAIL: CouncilOrders.tscn"); failures += 1
 	else:
 		var inst = packed.instantiate()
+		inst._build_layout()
+		var Game = load("res://scripts/council/CouncilGame.gd")
+		var OrdersVM = load("res://scripts/council/ViewModel.gd")
+		var Press = load("res://scripts/council/PressController.gd")
+		var OrdersFix = load("res://tests/fixtures/view_payload_negotiation.gd")
+		var orders_payload: Dictionary = OrdersFix.orders_view()
+		orders_payload["legal_orders"]["0"].append({"type": "Move", "dest": 3})
+		orders_payload["legal_orders"]["2"].append(
+			{"type": "SupportMove", "target": 0, "target_dest": 3}
+		)
+		var vm_orders = OrdersVM.new(orders_payload)
+		var game = Game.new()
+		game.view_model = vm_orders
+		game.press = Press.new()
+		game.press.seed_from_view(vm_orders)
+		game.press.add_intent(2, {"type": "Move", "dest": 4}, null)
+		inst.add_child(game)
+		inst.attach_game(game)
+		inst._on_view_changed(vm_orders)
+		failures += _expect("orders screen carries draft intent chip",
+			inst._intents_row.get_child_count() >= 1)
+		failures += _expect("orders screen carries draft intent arrow",
+			inst._intent_arrow_nodes.size() == 1)
+		inst._on_drag_proposed(0, 3)
+		inst._on_drag_proposed(2, 0)
+		var queued_support: Dictionary = inst.order_controller.order_for(2)
+		failures += _expect("orders screen supports queued mover",
+			String(queued_support.get("type", "")) == "SupportMove"
+			and int(queued_support.get("target", -1)) == 0
+			and int(queued_support.get("target_dest", -1)) == 3,
+			str(queued_support))
 		inst.queue_free()
 		print("ok: CouncilOrders.tscn")
 
@@ -68,6 +99,23 @@ func _initialize() -> void:
 	failures += _expect("interpret_drag adjacent → Move",
 		String(ord_move.get("type", "")) == "Move"
 		and int(ord_move.get("dest", -1)) == 4, str(ord_move))
+	# Local draft intents count too: dragging a supporter onto a friendly
+	# unit with a draft Move intent should become SupportMove.
+	var support_payload: Dictionary = Fix.negotiation_view()
+	support_payload["legal_orders"]["2"].append(
+		{"type": "SupportMove", "target": 0, "target_dest": 3}
+	)
+	var vm_with_support = VM.new(support_payload)
+	var local_intents := [
+		{"unit_id": 0, "declared_order": {"type": "Move", "dest": 3}},
+	]
+	var ord_support: Dictionary = Ctrl.interpret_drag(
+		vm_with_support, 2, 0, local_intents
+	)
+	failures += _expect("interpret_drag local draft → SupportMove",
+		String(ord_support.get("type", "")) == "SupportMove"
+		and int(ord_support.get("target", -1)) == 0
+		and int(ord_support.get("target_dest", -1)) == 3, str(ord_support))
 	# Drag to non-legal target (unit 0 to non-adjacent node 5) → empty.
 	var ord_none: Dictionary = Ctrl.interpret_drag(vm, 0, 5)
 	failures += _expect("interpret_drag illegal → empty",

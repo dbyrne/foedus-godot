@@ -62,7 +62,7 @@ func _build_structure() -> void:
 	v.add_child(plate)
 
 	_hint_label = Label.new()
-	_hint_label.text = "Drag from your unit:\n  • own hex → Hold\n  • adjacent hex → Move\n  • friendly unit → Support"
+	_hint_label.text = "Drag from your unit:\n  - own hex -> Hold\n  - open/enemy hex -> Move\n  - friendly mover -> Support Move\n  - friendly holder -> Support Hold"
 	_hint_label.add_theme_font_override("font", load(Tokens.FONT_SERIF_ITALIC) as Font)
 	_hint_label.add_theme_font_size_override("font_size", 13)
 	_hint_label.add_theme_color_override("font_color", Tokens.BONE_DIM)

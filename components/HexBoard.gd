@@ -26,6 +26,7 @@ class_name HexBoard
 ##
 
 const CouncilHexScript = preload("res://components/CouncilHex.gd")
+const OrderArrowScript = preload("res://components/OrderArrow.gd")
 
 signal tile_clicked(node_id: int, button: int)
 signal unit_clicked(unit_id: int, button: int)
@@ -34,6 +35,7 @@ signal drag_proposed(from_unit_id: int, to_node_id: int)
 var _view_model = null  # ViewModel; loose typing avoids class_name ordering
 var _hex_nodes: Dictionary = {}   # node_id → CouncilHex Node2D
 var _selected_unit_id: int = -1
+var _drag_arrow: Node2D = null
 
 # Drag state
 var _drag_from_unit_id: int = -1
@@ -84,6 +86,7 @@ func _rebuild() -> void:
 		hex.position = Tokens.hex_to_px(tile["q"], tile["r"])
 		add_child(hex)
 		_hex_nodes[tile["node_id"]] = hex
+	_ensure_drag_arrow()
 	_refresh_selection_overlay()
 
 
@@ -130,7 +133,7 @@ func _terrain_for_node_type(node_type: String) -> String:
 
 
 func _supply_for_tile(tile: Dictionary) -> int:
-	## CouncilHex.supply is 0 (none), 1 (regular chest), 2 (high-value crown).
+	## CouncilHex.supply is 0 (none), 1 (regular pip), 2 (high-value pips).
 	## Only supply-type nodes show a marker; homes always render their banner
 	## but no supply chest even though they yield score.
 	if String(tile.get("node_type", "")).to_lower() != "supply":
@@ -147,7 +150,7 @@ func _input(event: InputEvent) -> void:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and _is_dragging:
 		_drag_current_pos = to_local(event.position)
-		queue_redraw()
+		_update_drag_arrow()
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -164,7 +167,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 					_drag_from_pos = _hex_nodes[hit_node_id].position
 					_drag_current_pos = local
 					_is_dragging = true
-					queue_redraw()
+					_update_drag_arrow()
 					return
 			# Not a drag start — just a click.
 			if hit_node_id >= 0:
@@ -176,7 +179,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				if hit_node_id >= 0 and _drag_from_unit_id >= 0:
 					drag_proposed.emit(_drag_from_unit_id, hit_node_id)
 				_drag_from_unit_id = -1
-				queue_redraw()
+				_update_drag_arrow()
 				return
 			if hit_node_id >= 0:
 				# Treat unconsumed mouse-up as click for non-own units
@@ -194,6 +197,30 @@ func _emit_click(node_id: int, button: int) -> void:
 	if unit != null:
 		unit_clicked.emit(int(unit["id"]), button)
 	tile_clicked.emit(node_id, button)
+
+
+func _ensure_drag_arrow() -> void:
+	if _drag_arrow != null:
+		move_child(_drag_arrow, get_child_count() - 1)
+		return
+	_drag_arrow = OrderArrowScript.new()
+	_drag_arrow.kind = "Move"
+	_drag_arrow.ghost = true
+	_drag_arrow.visible = false
+	_drag_arrow.z_index = 1000
+	add_child(_drag_arrow)
+
+
+func _update_drag_arrow() -> void:
+	_ensure_drag_arrow()
+	if not _is_dragging or _drag_from_unit_id < 0 \
+			or _drag_from_pos.distance_to(_drag_current_pos) < 14.0:
+		_drag_arrow.visible = false
+		return
+	_drag_arrow.player_id = _view_model.my_player_id()
+	_drag_arrow.from_pos = _drag_from_pos
+	_drag_arrow.to_pos = _drag_current_pos
+	_drag_arrow.visible = true
 
 
 func _draw() -> void:

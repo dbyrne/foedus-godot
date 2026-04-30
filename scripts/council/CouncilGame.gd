@@ -55,6 +55,12 @@ func refresh_view() -> void:
 func _on_response(endpoint: String, data: Variant) -> void:
 	if endpoint.begins_with("/games/") and endpoint.ends_with("/view/%d" % view_player):
 		_apply_view(data)
+	elif endpoint.begins_with("/games/") and (
+			endpoint.ends_with("/chat")
+			or endpoint.ends_with("/commit")
+			or endpoint.ends_with("/orders")
+			or endpoint.ends_with("/advance")):
+		refresh_view()
 
 
 func _on_failure(endpoint: String, message: String) -> void:
@@ -80,21 +86,21 @@ func _apply_view(payload: Dictionary) -> void:
 # --- Press / orders submission -----------------------------------------
 
 func seal_intent() -> void:
-	## Submit the press payload + aid spends, then signal_chat_done +
-	## signal_done. The server advances to ORDERS once everyone has
-	## sealed.
+	## Close this player's chat window for the turn. The view model moves
+	## to ORDERS once every surviving player has signaled chat-done.
 	if game_client == null or press == null or view_model == null:
 		return
-	var press_payload: Dictionary = press.to_press_payload()
-	var aid_payload: Array = _resolve_aid_payload()
-	if game_client.has_method("submit_press"):
-		game_client.submit_press(game_id, view_player, press_payload)
-	if not aid_payload.is_empty() and game_client.has_method("submit_aid_spends"):
-		game_client.submit_aid_spends(game_id, view_player, aid_payload)
-	if game_client.has_method("signal_chat_done"):
-		game_client.signal_chat_done(game_id, view_player)
-	if game_client.has_method("signal_done"):
-		game_client.signal_done(game_id, view_player)
+	if not game_client.has_method("press_chat"):
+		failure_occurred.emit(
+			"/games/%s/chat" % game_id,
+			"GameClient does not implement press_chat",
+		)
+		return
+	var chat_text: String = String(press.chat_draft).strip_edges()
+	var draft: Variant = null
+	if not chat_text.is_empty():
+		draft = {"recipients": null, "body": chat_text}
+	game_client.press_chat(game_id, view_player, draft)
 
 
 func _resolve_aid_payload() -> Array:
@@ -117,16 +123,29 @@ func _resolve_aid_payload() -> Array:
 			continue
 		out.append({
 			"target_unit": target_unit_id,
-			"target_order": {"kind": "Hold", "unit_id": target_unit_id},
+			"target_order": {"type": "Hold"},
 		})
 	return out
 
 
 func submit_orders(orders: Dictionary) -> void:
-	if game_client == null:
+	if game_client == null or press == null:
 		return
-	if game_client.has_method("submit_orders"):
-		game_client.submit_orders(game_id, view_player, orders)
+	if not game_client.has_method("press_commit"):
+		failure_occurred.emit(
+			"/games/%s/commit" % game_id,
+			"GameClient does not implement press_commit",
+		)
+		return
+	var press_payload: Dictionary = press.to_press_payload()
+	var aid_payload: Array = _resolve_aid_payload()
+	game_client.press_commit(
+		game_id,
+		view_player,
+		press_payload,
+		orders,
+		aid_payload,
+	)
 
 
 # --- Convenience accessors ---------------------------------------------

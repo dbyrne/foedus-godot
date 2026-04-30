@@ -149,11 +149,29 @@ func _on_connect_pressed() -> void:
 func _on_create_pressed() -> void:
 	_status_label.text = "creating game…"
 	if _game_client.has_method("create_game"):
-		_game_client.create_game(4, [
+		var config := {
+			"num_players": 4,
+			"seed": 42,
+			"max_turns": 20,
+			"peace_threshold": 99,
+		}
+		_game_client.create_game(config, [
 			{"type": "human", "name": "You"},
-			{"type": "agent", "name": "Cooperator"},
-			{"type": "agent", "name": "DishonestCooperator"},
-			{"type": "agent", "name": "GreedyHold"},
+			{
+				"type": "agent",
+				"name": "Cooperator",
+				"kind": "foedus.agents.heuristics.Cooperator",
+			},
+			{
+				"type": "agent",
+				"name": "DishonestCooperator",
+				"kind": "foedus.agents.heuristics.DishonestCooperator",
+			},
+			{
+				"type": "agent",
+				"name": "GreedyHold",
+				"kind": "foedus.agents.heuristics.GreedyHold",
+			},
 		])
 
 

@@ -43,6 +43,7 @@ func _initialize() -> void:
 	else:
 		var neg = neg_packed.instantiate()
 		root.add_child(neg)
+		await create_timer(0.1).timeout
 		# Feed a synthetic view via an in-process CouncilGame stand-in.
 		var VM = load("res://scripts/council/ViewModel.gd")
 		var Fix = load("res://tests/fixtures/view_payload_negotiation.gd")
@@ -58,6 +59,22 @@ func _initialize() -> void:
 		# Manually fire view_changed since attach_game's path through
 		# game_client's response signal isn't wired here.
 		neg._on_view_changed(vm)
+		neg._on_intent_drag_proposed(2, 4)
+		failures += _expect("dragging own unit stages Move intent",
+			game.press.intents.size() == 1
+			and int(game.press.intents[0].get("unit_id", -1)) == 2
+			and String(game.press.intents[0].get("declared_order", {}).get("type", "")) == "Move"
+			and int(game.press.intents[0].get("declared_order", {}).get("dest", -1)) == 4)
+		failures += _expect("intent payload uses visible_to",
+			game.press.to_press_payload()["intents"][0].has("visible_to")
+			and not game.press.to_press_payload()["intents"][0].has("recipients"))
+		failures += _expect("staged intent keeps arrow visible",
+			neg._intent_arrow_nodes.size() == 1)
+		neg._on_unit_clicked(2, MOUSE_BUTTON_RIGHT)
+		failures += _expect("right-click removes staged intent",
+			game.press.intents.is_empty())
+		failures += _expect("right-click removes staged arrow",
+			neg._intent_arrow_nodes.is_empty())
 		print("ok: CouncilNegotiation rendered against synthetic view")
 
 	# Entry scene loads.
@@ -75,3 +92,11 @@ func _initialize() -> void:
 	else:
 		print("--- %d FAILURES ---" % failures)
 		quit(1)
+
+
+func _expect(name: String, cond: bool, detail: String = "") -> int:
+	if cond:
+		print("ok: ", name)
+		return 0
+	push_error("FAIL: %s - %s" % [name, detail])
+	return 1
