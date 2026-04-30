@@ -17,14 +17,14 @@ project is purely visualization and input."
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
+[autoload]
+
+Tokens="*res://scripts/Tokens.gd"
+
 [display]
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-
-[autoload]
-
-Tokens="*res://scripts/Tokens.gd"
 
 [gui]
 
