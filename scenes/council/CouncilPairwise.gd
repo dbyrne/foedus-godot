@@ -27,6 +27,10 @@ var _leverage_label: Label
 var _ledger_label: Label
 var _stance_label: Label
 var _betrayals_box: VBoxContainer
+var _me_stats_label: Label
+var _them_stats_label: Label
+var _recent_intents_box: VBoxContainer
+var _their_stances_label: Label
 
 
 func _ready() -> void:
@@ -104,6 +108,43 @@ func _build_layout() -> void:
 	_ledger_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_ledger_label.text = ""
 	_root_layer.add_child(_ledger_label)
+
+	# Per-side stats labels under each crest.
+	_me_stats_label = _make_stats_label()
+	_me_stats_label.position = Vector2(110, 340)
+	_me_stats_label.size = Vector2(220, 56)
+	_root_layer.add_child(_me_stats_label)
+
+	_them_stats_label = _make_stats_label()
+	_them_stats_label.position = Vector2(830, 340)
+	_them_stats_label.size = Vector2(220, 56)
+	_root_layer.add_child(_them_stats_label)
+
+	# Recent declarations panel (their last_press intents).
+	var recent_plate = BrassPlateScript.new()
+	recent_plate.text = "THEIR RECENT DECLARATIONS"
+	recent_plate.font_size_px = 11
+	recent_plate.position = Vector2(440, 360)
+	_root_layer.add_child(recent_plate)
+
+	_recent_intents_box = VBoxContainer.new()
+	_recent_intents_box.position = Vector2(440, 400)
+	_recent_intents_box.size = Vector2(400, 80)
+	_recent_intents_box.add_theme_constant_override("separation", 4)
+	_root_layer.add_child(_recent_intents_box)
+
+	# Their stances toward everyone — read of their wider posture.
+	_their_stances_label = Label.new()
+	_their_stances_label.add_theme_font_override(
+		"font", load(Tokens.FONT_SERIF_ITALIC) as Font
+	)
+	_their_stances_label.add_theme_font_size_override("font_size", 13)
+	_their_stances_label.add_theme_color_override("font_color", Tokens.BONE_DIM)
+	_their_stances_label.position = Vector2(60, 504)
+	_their_stances_label.size = Vector2(1160, 22)
+	_their_stances_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_their_stances_label.text = ""
+	_root_layer.add_child(_their_stances_label)
 
 	_stance_label = Label.new()
 	_stance_label.add_theme_font_override(
@@ -184,6 +225,68 @@ func _on_view_changed(vm) -> void:
 		Tokens.faction_tag(them), Tokens.faction_tag(me), s_them_me.to_upper(),
 	]
 
+	# Per-side score + unit count.
+	_me_stats_label.text = "%s\nscore %d · %s" % [
+		Tokens.faction_tag(me),
+		int(vm.score(me)),
+		_units_phrase(vm.units_owned_by(me).size()),
+	]
+	_them_stats_label.text = "%s\nscore %d · %s" % [
+		Tokens.faction_tag(them),
+		int(vm.score(them)),
+		_units_phrase(vm.units_owned_by(them).size()),
+	]
+
+	# Their last-locked-press intents — what did they publish last turn?
+	for c in _recent_intents_box.get_children():
+		c.queue_free()
+	var their_press: Variant = vm._raw.get("last_press", {}).get(str(them))
+	var their_intents: Array = []
+	if their_press != null:
+		their_intents = their_press.get("intents", [])
+	if their_intents.is_empty():
+		_recent_intents_box.add_child(_dim_label(
+			"(no declarations on record)"))
+	else:
+		for it in their_intents:
+			var ord: Dictionary = it.get("declared_order", {})
+			var verb := String(ord.get("type", "?"))
+			var detail := ""
+			if ord.has("dest"):
+				detail = "→n%s" % str(ord["dest"])
+			elif ord.has("target_unit"):
+				detail = "·u%s" % str(ord["target_unit"])
+			var line := Label.new()
+			line.text = "  u%d  %s%s" % [
+				int(it.get("unit_id", -1)),
+				verb.to_upper(),
+				detail,
+			]
+			line.add_theme_font_override("font", load(Tokens.FONT_SERIF) as Font)
+			line.add_theme_font_size_override("font_size", 14)
+			line.add_theme_color_override("font_color", Tokens.BONE)
+			_recent_intents_box.add_child(line)
+
+	# Their stance toward every other player — broader posture read.
+	var stance_parts: Array = []
+	if their_press != null:
+		var their_stance: Dictionary = their_press.get("stance", {})
+		for other in vm.num_players():
+			if other == them:
+				continue
+			var s: Variant = their_stance.get(str(other))
+			if s == null:
+				continue
+			stance_parts.append("%s→%s:%s" % [
+				Tokens.faction_tag(them),
+				Tokens.faction_tag(int(other)),
+				String(s).to_upper(),
+			])
+	if stance_parts.is_empty():
+		_their_stances_label.text = "(no broader stance on record)"
+	else:
+		_their_stances_label.text = "  ·  ".join(stance_parts)
+
 	# Betrayal log filtered to this pair.
 	for c in _betrayals_box.get_children():
 		c.queue_free()
@@ -219,6 +322,29 @@ func _default_focus(vm, me: int) -> int:
 		# No leverage with anyone — pick player_id (me+1) % n.
 		best_pid = (me + 1) % max(1, vm.num_players())
 	return best_pid
+
+
+func _units_phrase(n: int) -> String:
+	return "%d unit" % n if n == 1 else "%d units" % n
+
+
+func _make_stats_label() -> Label:
+	var l := Label.new()
+	l.add_theme_font_override("font", load(Tokens.FONT_SERIF) as Font)
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Tokens.BONE)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	return l
+
+
+func _dim_label(text: String) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", load(Tokens.FONT_SERIF_ITALIC) as Font)
+	l.add_theme_font_size_override("font_size", 13)
+	l.add_theme_color_override("font_color", Tokens.BONE_DIM)
+	return l
 
 
 func _betrayal_row(b: Dictionary) -> Control:
