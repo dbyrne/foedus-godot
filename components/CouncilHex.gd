@@ -63,13 +63,24 @@ func _refresh_unit() -> void:
 		add_child(_unit_piece)
 
 
-func _draw() -> void:
+## Sets the Node2D's position to the hex's pixel coordinate based on
+## (q, r). Call this once after `tile` is set. Drawing happens at
+## local (0, 0) regardless — only `position` is the world location.
+##
+## In standalone use (e.g., the demo grid), the caller can skip this
+## and place the Node2D wherever they want; _draw still draws around
+## local origin.
+func update_position_from_tile() -> void:
 	var q := int(tile.get("q", 0))
 	var r := int(tile.get("r", 0))
-	var center := Tokens.hex_to_px(q, r)
-	# Position the Node2D at the hex center; everything below draws
-	# relative to that.
-	position = center
+	position = Tokens.hex_to_px(q, r)
+
+
+func _draw() -> void:
+	# Always draw centered on local (0, 0). The Node2D's `position`
+	# determines where on the parent canvas this hex appears; that's
+	# either the hex grid coordinate (via update_position_from_tile)
+	# or whatever the caller chose (e.g., a demo wrapper centers it).
 	var hr := float(Tokens.HEX_R - 1)
 
 	var terrain := String(tile.get("terrain", "plain"))

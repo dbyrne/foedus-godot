@@ -99,9 +99,9 @@ func _build_unit_pieces() -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	for pid in 4:
-		row.add_child(_node2d_in_control(_make_unit(pid, "A", false, false), 36, 36))
-	row.add_child(_node2d_in_control(_make_unit(0, "B", true, false), 36, 36))
-	row.add_child(_node2d_in_control(_make_unit(1, "C", false, true), 36, 36))
+		row.add_child(_node2d_in_control(_make_unit(pid, "A", false, false), 60, 60))
+	row.add_child(_node2d_in_control(_make_unit(0, "B", true, false), 60, 60))
+	row.add_child(_node2d_in_control(_make_unit(1, "C", false, true), 60, 60))
 	return row
 
 
@@ -109,7 +109,7 @@ func _make_unit(pid: int, label: String, selected: bool, ghost: bool) -> Node2D:
 	var u: Node2D = UnitPieceScript.new()
 	u.player_id = pid
 	u.label = label
-	u.piece_size = 26
+	u.piece_size = 50
 	u.selected = selected
 	u.ghost = ghost
 	return u

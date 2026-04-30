@@ -53,7 +53,7 @@ func _draw() -> void:
 		draw_circle(center, radius, seal_color)
 		draw_arc(center, radius, 0, TAU, 32, Tokens.INK, 0.8)
 		if label != "":
-			var f := load(Tokens.FONT_DISPLAY) as FontFile
+			var f := load(Tokens.FONT_DISPLAY) as Font
 			var fsize := int(radius * 1.4)
 			var ts := f.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)
 			draw_string(f, center + Vector2(-ts.x / 2, ts.y / 4), label,

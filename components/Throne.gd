@@ -84,7 +84,7 @@ func _draw() -> void:
 
 	# Empty-state label
 	if not occupied:
-		var f := load(Tokens.FONT_SERIF_ITALIC) as FontFile
+		var f := load(Tokens.FONT_SERIF_ITALIC) as Font
 		var fsize := int(w * 0.10)
 		var msg := "(empty)"
 		var ts := f.get_string_size(msg, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)

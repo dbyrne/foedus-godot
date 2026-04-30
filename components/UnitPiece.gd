@@ -45,18 +45,20 @@ func _draw() -> void:
 	draw_circle(Vector2.ZERO, r * 0.78, Color(p_main, alpha))
 
 	# Glint — white ellipse upper-left
-	# Godot Node2D doesn't have a draw_ellipse; approximate with small
-	# circle. Visually close at unit-piece scale.
 	draw_circle(Vector2(-r * 0.25, -r * 0.30), r * 0.30,
 		Color(1, 1, 1, 0.25 * alpha))
 
-	# Label glyph
-	var f := load(Tokens.FONT_DISPLAY) as FontFile
-	if f != null and label != "":
+	# Label glyph — Godot's built-in fallback font renders reliably
+	# headlessly. Bundled variable fonts produced glyph-bounding-box
+	# artifacts at small sizes; revisit in Phase 2 with proper
+	# theme-fed FontVariation resources or imported static weights.
+	if label != "":
+		var f := ThemeDB.fallback_font
 		var fsize := int(piece_size * 0.55)
-		var ts := f.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)
-		draw_string(f, Vector2(-ts.x / 2.0, ts.y / 4.0), label,
-			HORIZONTAL_ALIGNMENT_CENTER, -1, fsize, Color(Tokens.BONE, alpha))
+		var ts := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize)
+		var pos := Vector2(-ts.x * 0.5, ts.y * 0.30)
+		var text_color := Color(Tokens.BONE.r, Tokens.BONE.g, Tokens.BONE.b, alpha)
+		draw_string(f, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, text_color)
 
 	# Selection halo — candle dashed circle
 	if selected:

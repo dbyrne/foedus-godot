@@ -32,17 +32,16 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.4), true)
 	draw_rect(Rect2(Vector2.ZERO, size), Tokens.BRASS_DIM, false, 1.0)
 
-	# Phase label (left)
-	var sans := load(Tokens.FONT_SANS) as FontFile
+	# Phase label (left) — fallback font; same rationale as timer below.
+	var sans := ThemeDB.fallback_font
 	var phase_str := "II · ORDERS" if phase == PHASE_ORDERS else "I · NEGOTIATION"
-	var phase_size := 9
+	var phase_size := 10
 	# Hand-letterspace with thin spaces for the small-caps look
 	var spaced := " ".join(phase_str.split(""))
-	if sans != null:
-		var pad_x := 18.0
-		var label_y := (h + phase_size) / 2.0 - 2
-		draw_string(sans, Vector2(pad_x, label_y), spaced,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, phase_size, Tokens.BRASS)
+	var pad_x := 18.0
+	var label_y := (h + phase_size) / 2.0 - 2
+	draw_string(sans, Vector2(pad_x, label_y), spaced,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, phase_size, Tokens.BRASS)
 
 	# Vertical divider
 	var divider_x := 200.0
@@ -89,11 +88,12 @@ func _draw() -> void:
 	for i in ecg_pts.size() - 1:
 		draw_line(ecg_pts[i], ecg_pts[i + 1], Color(Tokens.BONE, 0.6), 0.6)
 
-	# Timer (right)
-	var mono := load(Tokens.FONT_MONO_MEDIUM if false else Tokens.FONT_MONO) as FontFile
-	if mono != null:
-		var fsize := 14
-		var ts := mono.get_string_size(timer_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize)
-		var c := Tokens.EMBER if phase == PHASE_ORDERS else Tokens.CANDLE
-		draw_string(mono, Vector2(w - ts.x - 14, h / 2 + fsize / 2 - 2),
-			timer_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, c)
+	# Timer (right) — fallback font for now (variable fonts produced
+	# rectangle-glyph artifacts in headless rendering).
+	var mono := ThemeDB.fallback_font
+	var fsize := 14
+	var ts := mono.get_string_size(timer_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize)
+	var c: Color = Tokens.EMBER if phase == PHASE_ORDERS else Tokens.CANDLE
+	var pos := Vector2(w - ts.x - 14, h * 0.5 + fsize * 0.35)
+	draw_string(mono, pos, timer_text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, c)
