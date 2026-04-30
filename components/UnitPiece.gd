@@ -12,19 +12,48 @@ class_name UnitPiece
 ##
 
 @export_range(0, 3) var player_id: int = 0 :
-	set(value): player_id = value; queue_redraw()
+	set(value): player_id = value; _refresh_label(); queue_redraw()
 
 @export var label: String = "A" :
-	set(value): label = value; queue_redraw()
+	set(value): label = value; _refresh_label(); queue_redraw()
 
 @export_range(8, 80, 1) var piece_size: int = 22 :
-	set(value): piece_size = value; queue_redraw()
+	set(value): piece_size = value; _refresh_label(); queue_redraw()
 
 @export var selected: bool = false :
 	set(value): selected = value; queue_redraw()
 
 @export var ghost: bool = false :
 	set(value): ghost = value; queue_redraw()
+
+var _label_node: Label
+
+
+func _ready() -> void:
+	_refresh_label()
+
+
+func _refresh_label() -> void:
+	if not is_inside_tree():
+		return
+	if _label_node == null:
+		_label_node = Label.new()
+		_label_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_label_node.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_label_node.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_label_node.add_theme_font_override(
+			"font", load(Tokens.FONT_DISPLAY) as Font
+		)
+		_label_node.add_theme_color_override("font_color", Tokens.BONE)
+		add_child(_label_node)
+	var fsize := int(piece_size * 0.6)
+	_label_node.add_theme_font_size_override("font_size", fsize)
+	_label_node.text = label
+	# Center the Label on the Node2D's local origin.
+	var w := piece_size + 8
+	var h := piece_size + 8
+	_label_node.size = Vector2(w, h)
+	_label_node.position = Vector2(-w * 0.5, -h * 0.5)
 
 
 func _draw() -> void:
@@ -48,17 +77,13 @@ func _draw() -> void:
 	draw_circle(Vector2(-r * 0.25, -r * 0.30), r * 0.30,
 		Color(1, 1, 1, 0.25 * alpha))
 
-	# Label glyph — Godot's built-in fallback font renders reliably
-	# headlessly. Bundled variable fonts produced glyph-bounding-box
-	# artifacts at small sizes; revisit in Phase 2 with proper
-	# theme-fed FontVariation resources or imported static weights.
-	if label != "":
-		var f := ThemeDB.fallback_font
-		var fsize := int(piece_size * 0.55)
-		var ts := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize)
-		var pos := Vector2(-ts.x * 0.5, ts.y * 0.30)
-		var text_color := Color(Tokens.BONE.r, Tokens.BONE.g, Tokens.BONE.b, alpha)
-		draw_string(f, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, text_color)
+	# Label glyph is rendered by the _label_node Label child (added in
+	# _ready / _refresh_label). Labels handle theme-font-overrides
+	# correctly with variable fonts; raw draw_string does not.
+	if ghost and _label_node != null:
+		_label_node.modulate = Color(1, 1, 1, 0.4)
+	elif _label_node != null:
+		_label_node.modulate = Color(1, 1, 1, 1)
 
 	# Selection halo — candle dashed circle
 	if selected:

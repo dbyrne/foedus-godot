@@ -78,10 +78,21 @@ func _draw() -> void:
 	# Sigil
 	_draw_sigil(player_id, k)
 
-	# Broken overlay
+	# Broken overlay — bold X across the shield, with both diagonals
+	# and a crack-edge highlight to read clearly even at small sizes.
 	if broken:
-		draw_line(Vector2(s * 0.23, s * 0.4), Vector2(s * 0.77, s * 0.8), Tokens.INK, 3.0)
-		draw_line(Vector2(s * 0.23, s * 0.4), Vector2(s * 0.77, s * 0.8), Tokens.BLOOD, 1.5)
+		var w_outer: float = max(2.5, s * 0.06)
+		var w_inner: float = max(1.0, s * 0.025)
+		var p1a := Vector2(s * 0.20, s * 0.30)
+		var p1b := Vector2(s * 0.80, s * 0.85)
+		var p2a := Vector2(s * 0.80, s * 0.30)
+		var p2b := Vector2(s * 0.20, s * 0.85)
+		# Dark base strokes (read against light shield colors)
+		draw_line(p1a, p1b, Tokens.INK, w_outer)
+		draw_line(p2a, p2b, Tokens.INK, w_outer)
+		# Inner blood-red strokes
+		draw_line(p1a, p1b, Tokens.BLOOD, w_inner)
+		draw_line(p2a, p2b, Tokens.BLOOD, w_inner)
 
 
 func _shield_outline(k: float) -> PackedVector2Array:

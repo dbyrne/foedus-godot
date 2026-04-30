@@ -12,17 +12,61 @@ const PHASE_NEGOTIATION := "negotiation"
 const PHASE_ORDERS      := "orders"
 
 @export_enum("negotiation", "orders") var phase: String = "negotiation" :
-	set(value): phase = value; queue_redraw()
+	set(value): phase = value; _refresh_text(); queue_redraw()
 
 @export var timer_text: String = "02:14" :
-	set(value): timer_text = value; queue_redraw()
+	set(value): timer_text = value; _refresh_text(); queue_redraw()
 
 @export_range(0.0, 1.0, 0.01) var value: float = 0.5 :
 	set(value): value = value; queue_redraw()
 
+var _phase_label: Label
+var _timer_label: Label
+
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(360, 36)
+	_phase_label = Label.new()
+	_phase_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_phase_label.add_theme_font_override("font", load(Tokens.FONT_SANS) as Font)
+	_phase_label.add_theme_font_size_override("font_size", 10)
+	_phase_label.add_theme_color_override("font_color", Tokens.BRASS)
+	add_child(_phase_label)
+
+	_timer_label = Label.new()
+	_timer_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_timer_label.add_theme_font_override("font", load(Tokens.FONT_MONO) as Font)
+	_timer_label.add_theme_font_size_override("font_size", 14)
+	add_child(_timer_label)
+	_refresh_text()
+
+
+func _refresh_text() -> void:
+	if _phase_label == null:
+		return
+	var phase_str := "II · ORDERS" if phase == PHASE_ORDERS else "I · NEGOTIATION"
+	_phase_label.text = " ".join(phase_str.split(""))
+	_timer_label.text = timer_text
+	_timer_label.add_theme_color_override(
+		"font_color",
+		Tokens.EMBER if phase == PHASE_ORDERS else Tokens.CANDLE
+	)
+	_position_labels()
+
+
+func _position_labels() -> void:
+	if _phase_label == null:
+		return
+	_phase_label.position = Vector2(18, (size.y - 14) * 0.5)
+	_phase_label.size = Vector2(180, 16)
+	_timer_label.position = Vector2(size.x - 60, (size.y - 18) * 0.5)
+	_timer_label.size = Vector2(46, 18)
+	_timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+
+func _process(_delta: float) -> void:
+	if _phase_label != null:
+		_position_labels()
 
 
 func _draw() -> void:
@@ -32,16 +76,8 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.4), true)
 	draw_rect(Rect2(Vector2.ZERO, size), Tokens.BRASS_DIM, false, 1.0)
 
-	# Phase label (left) — fallback font; same rationale as timer below.
-	var sans := ThemeDB.fallback_font
-	var phase_str := "II · ORDERS" if phase == PHASE_ORDERS else "I · NEGOTIATION"
-	var phase_size := 10
-	# Hand-letterspace with thin spaces for the small-caps look
-	var spaced := " ".join(phase_str.split(""))
-	var pad_x := 18.0
-	var label_y := (h + phase_size) / 2.0 - 2
-	draw_string(sans, Vector2(pad_x, label_y), spaced,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, phase_size, Tokens.BRASS)
+	# Phase label is drawn by the _phase_label Label child (handles
+	# variable fonts via theme overrides correctly).
 
 	# Vertical divider
 	var divider_x := 200.0
@@ -88,12 +124,4 @@ func _draw() -> void:
 	for i in ecg_pts.size() - 1:
 		draw_line(ecg_pts[i], ecg_pts[i + 1], Color(Tokens.BONE, 0.6), 0.6)
 
-	# Timer (right) — fallback font for now (variable fonts produced
-	# rectangle-glyph artifacts in headless rendering).
-	var mono := ThemeDB.fallback_font
-	var fsize := 14
-	var ts := mono.get_string_size(timer_text, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize)
-	var c: Color = Tokens.EMBER if phase == PHASE_ORDERS else Tokens.CANDLE
-	var pos := Vector2(w - ts.x - 14, h * 0.5 + fsize * 0.35)
-	draw_string(mono, pos, timer_text,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, c)
+	# Timer is drawn by the _timer_label Label child.

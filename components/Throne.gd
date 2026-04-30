@@ -43,8 +43,12 @@ func _refresh() -> void:
 	if occupied:
 		_crest = CrestScript.new()
 		_crest.player_id = player_id
-		_crest.crest_size = int(throne_size * 0.5)
-		_crest.position = Vector2(throne_size * 0.25, throne_size * 0.35)
+		var cs := int(throne_size * 0.42)
+		_crest.crest_size = cs
+		# Center the crest inside the panel (panel: x∈[0.31, 0.69], y∈[0.10, 0.62] of throne size)
+		var panel_cx := throne_size * 0.50
+		var panel_cy := throne_size * 1.30 * 0.36  # vertical center of panel
+		_crest.position = Vector2(panel_cx - cs * 0.5, panel_cy - cs * 0.6)
 		add_child(_crest)
 	queue_redraw()
 
@@ -52,41 +56,76 @@ func _refresh() -> void:
 func _draw() -> void:
 	var w := float(throne_size)
 	var h := w * 1.3
-	# Backrest — tall rectangle with arched top
+
+	# Drop shadow under seat for depth.
+	draw_rect(Rect2(Vector2(w * 0.08, h * 0.78), Vector2(w * 0.84, h * 0.04)),
+		Color(0, 0, 0, 0.5), true)
+
+	# Backrest — pointed-arch top, tall sides (reads as a high-back
+	# wooden throne rather than a banner).
 	var back := PackedVector2Array([
-		Vector2(w * 0.18, h * 0.05),  # top-left
-		Vector2(w * 0.30, h * 0.0),
-		Vector2(w * 0.70, h * 0.0),
-		Vector2(w * 0.82, h * 0.05),
-		Vector2(w * 0.82, h * 0.65),
-		Vector2(w * 0.18, h * 0.65),
+		Vector2(w * 0.50, h * 0.00),  # peak
+		Vector2(w * 0.62, h * 0.06),
+		Vector2(w * 0.74, h * 0.04),
+		Vector2(w * 0.78, h * 0.10),
+		Vector2(w * 0.78, h * 0.66),
+		Vector2(w * 0.22, h * 0.66),
+		Vector2(w * 0.22, h * 0.10),
+		Vector2(w * 0.26, h * 0.04),
+		Vector2(w * 0.38, h * 0.06),
 	])
 	draw_colored_polygon(back, Tokens.FELT_LIGHT)
-	for i in back.size():
-		var a := back[i]
-		var b := back[(i + 1) % back.size()]
-		draw_line(a, b, Tokens.BRASS_DIM, 1.5)
+	# Inner panel (darker) — reads as a recessed velvet pad
+	var panel := PackedVector2Array([
+		Vector2(w * 0.31, h * 0.10),
+		Vector2(w * 0.69, h * 0.10),
+		Vector2(w * 0.69, h * 0.62),
+		Vector2(w * 0.31, h * 0.62),
+	])
+	draw_colored_polygon(panel, Tokens.FELT_DARK)
+	# Backrest outline + panel outline in brass
+	for poly in [back, panel]:
+		for i in poly.size():
+			draw_line(poly[i], poly[(i + 1) % poly.size()], Tokens.BRASS_DIM, 1.5)
 
-	# Seat
-	var seat := Rect2(Vector2(w * 0.10, h * 0.65), Vector2(w * 0.80, h * 0.10))
+	# Armrests — small rounded extensions on either side
+	draw_rect(Rect2(Vector2(w * 0.10, h * 0.55), Vector2(w * 0.16, h * 0.08)),
+		Tokens.FELT_LIGHT, true)
+	draw_rect(Rect2(Vector2(w * 0.10, h * 0.55), Vector2(w * 0.16, h * 0.08)),
+		Tokens.BRASS_DIM, false, 1.5)
+	draw_rect(Rect2(Vector2(w * 0.74, h * 0.55), Vector2(w * 0.16, h * 0.08)),
+		Tokens.FELT_LIGHT, true)
+	draw_rect(Rect2(Vector2(w * 0.74, h * 0.55), Vector2(w * 0.16, h * 0.08)),
+		Tokens.BRASS_DIM, false, 1.5)
+
+	# Seat — wider than backrest, slight forward overhang
+	var seat := Rect2(Vector2(w * 0.08, h * 0.66), Vector2(w * 0.84, h * 0.10))
 	draw_rect(seat, Tokens.FELT_LIGHT, true)
 	draw_rect(seat, Tokens.BRASS_DIM, false, 1.5)
 
-	# Legs
-	draw_rect(Rect2(Vector2(w * 0.14, h * 0.75), Vector2(w * 0.06, h * 0.20)),
+	# Legs — front pair visible
+	draw_rect(Rect2(Vector2(w * 0.12, h * 0.76), Vector2(w * 0.08, h * 0.22)),
 		Tokens.FELT_DARK, true)
-	draw_rect(Rect2(Vector2(w * 0.80, h * 0.75), Vector2(w * 0.06, h * 0.20)),
+	draw_rect(Rect2(Vector2(w * 0.12, h * 0.76), Vector2(w * 0.08, h * 0.22)),
+		Tokens.BRASS_DIM, false, 1.0)
+	draw_rect(Rect2(Vector2(w * 0.80, h * 0.76), Vector2(w * 0.08, h * 0.22)),
 		Tokens.FELT_DARK, true)
+	draw_rect(Rect2(Vector2(w * 0.80, h * 0.76), Vector2(w * 0.08, h * 0.22)),
+		Tokens.BRASS_DIM, false, 1.0)
+	# Foot finials
+	draw_circle(Vector2(w * 0.16, h * 0.99), w * 0.05, Tokens.BRASS)
+	draw_circle(Vector2(w * 0.84, h * 0.99), w * 0.05, Tokens.BRASS)
 
-	# Brass finials at backrest top corners
-	draw_circle(Vector2(w * 0.20, h * 0.04), w * 0.04, Tokens.BRASS)
-	draw_circle(Vector2(w * 0.80, h * 0.04), w * 0.04, Tokens.BRASS)
+	# Brass finials at backrest peak + corners
+	draw_circle(Vector2(w * 0.50, h * -0.02), w * 0.04, Tokens.BRASS)
+	draw_circle(Vector2(w * 0.22, h * 0.10), w * 0.03, Tokens.BRASS)
+	draw_circle(Vector2(w * 0.78, h * 0.10), w * 0.03, Tokens.BRASS)
 
-	# Empty-state label
+	# Empty-state label inside the panel
 	if not occupied:
 		var f := load(Tokens.FONT_SERIF_ITALIC) as Font
 		var fsize := int(w * 0.10)
 		var msg := "(empty)"
 		var ts := f.get_string_size(msg, HORIZONTAL_ALIGNMENT_CENTER, -1, fsize)
-		draw_string(f, Vector2((w - ts.x) / 2.0, h * 0.45), msg,
+		draw_string(f, Vector2((w - ts.x) / 2.0, h * 0.40), msg,
 			HORIZONTAL_ALIGNMENT_CENTER, -1, fsize, Tokens.BONE_DIM)
