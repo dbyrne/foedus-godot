@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://bv5rwpriqii1u"]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/GameClient.gd" id="2_client"]
 [ext_resource type="Script" path="res://scripts/HexMap.gd" id="3_hexmap"]
 
 [node name="Main" type="Control"]
@@ -8,8 +9,6 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 script = ExtResource("1_main")
 
 [node name="VBox" type="VBoxContainer" parent="."]
@@ -21,13 +20,11 @@ offset_left = 16.0
 offset_top = 12.0
 offset_right = -16.0
 offset_bottom = -12.0
-grow_horizontal = 2
-grow_vertical = 2
 
 [node name="Title" type="Label" parent="VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
 text = "foedus — local play"
+theme_override_font_sizes/font_size = 24
 
 [node name="HBox" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -47,9 +44,9 @@ text = "Connect"
 
 [node name="StatusLabel" type="Label" parent="VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.82, 0.92, 1)
 text = "not connected"
 autowrap_mode = 3
+theme_override_colors/font_color = Color(0.78, 0.82, 0.92, 1)
 
 [node name="GameOverBanner" type="PanelContainer" parent="VBox"]
 visible = false
@@ -57,19 +54,19 @@ layout_mode = 2
 
 [node name="GameOverLabel" type="Label" parent="VBox/GameOverBanner"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.5, 0.86, 0.5, 1)
-theme_override_font_sizes/font_size = 18
 text = "GAME OVER"
 horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.5, 0.86, 0.5, 1)
+theme_override_font_sizes/font_size = 18
 
 [node name="GameCreate" type="VBoxContainer" parent="VBox"]
 layout_mode = 2
 
 [node name="GameCreateLabel" type="Label" parent="VBox/GameCreate"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
-theme_override_font_sizes/font_size = 14
 text = "Game setup"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="HSeats" type="HBoxContainer" parent="VBox/GameCreate"]
 layout_mode = 2
@@ -133,6 +130,7 @@ text = "  seed:"
 
 [node name="SeedSpin" type="SpinBox" parent="VBox/GameCreate/HConfig"]
 layout_mode = 2
+min_value = 0.0
 max_value = 999999.0
 value = 42.0
 
@@ -153,8 +151,8 @@ text = "Create game"
 
 [node name="GamesLabel" type="Label" parent="VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
 text = "(no active game)"
+theme_override_colors/font_color = Color(0.65, 0.65, 0.65, 1)
 
 [node name="HBoxButtons" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
@@ -197,6 +195,7 @@ text = "viewing player:  "
 [node name="ViewPlayerSpin" type="SpinBox" parent="VBox/ViewSelect"]
 layout_mode = 2
 max_value = 5.0
+value = 0.0
 
 [node name="ReplaySep" type="VSeparator" parent="VBox/ViewSelect"]
 layout_mode = 2
@@ -207,7 +206,9 @@ text = "  view turn:"
 
 [node name="ReplayTurnSpin" type="SpinBox" parent="VBox/ViewSelect"]
 layout_mode = 2
+min_value = 0.0
 max_value = 0.0
+value = 0.0
 
 [node name="ReplayLiveBtn" type="Button" parent="VBox/ViewSelect"]
 layout_mode = 2
@@ -215,8 +216,8 @@ text = "↪ Live"
 
 [node name="ReplayStatus" type="Label" parent="VBox/ViewSelect"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.55, 0.78, 0.55, 1)
 text = "  (live)"
+theme_override_colors/font_color = Color(0.55, 0.78, 0.55, 1)
 
 [node name="HSplit" type="HSplitContainer" parent="VBox"]
 layout_mode = 2
@@ -228,9 +229,9 @@ layout_mode = 2
 
 [node name="ScoreboardHeader" type="Label" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
-theme_override_font_sizes/font_size = 14
 text = "Scoreboard"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="ScoreboardList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2
@@ -247,11 +248,9 @@ fit_content = true
 custom_minimum_size = Vector2(0, 220)
 layout_mode = 2
 size_flags_vertical = 3
-current_tab = 0
 
 [node name="Press" type="ScrollContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs"]
 layout_mode = 2
-metadata/_tab_index = 0
 
 [node name="VBox" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press"]
 layout_mode = 2
@@ -259,24 +258,24 @@ size_flags_horizontal = 3
 
 [node name="StanceHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 text = "Stance toward each other player"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="StanceList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
 layout_mode = 2
 
 [node name="IntentsHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 text = "Declared intents (per unit)"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="IntentList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
 layout_mode = 2
 
 [node name="ChatHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 text = "Chat draft (type then \"Send chat\")"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="ChatRow" type="HBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Press/VBox"]
 layout_mode = 2
@@ -297,7 +296,6 @@ placeholder_text = "Draft a message..."
 [node name="Aid" type="ScrollContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs"]
 visible = false
 layout_mode = 2
-metadata/_tab_index = 1
 
 [node name="VBox" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid"]
 layout_mode = 2
@@ -305,21 +303,21 @@ size_flags_horizontal = 3
 
 [node name="AidBalance" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
 text = "Aid tokens: 0"
+theme_override_font_sizes/font_size = 14
 
 [node name="AidSpendHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 text = "Backable ally intents (1 token each)"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="AidSpendList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
 layout_mode = 2
 
 [node name="TrustHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 text = "Trust ledger (rows: aid given to columns)"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="TrustGrid" type="GridContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Aid/VBox"]
 layout_mode = 2
@@ -327,7 +325,6 @@ layout_mode = 2
 [node name="Info" type="ScrollContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs"]
 visible = false
 layout_mode = 2
-metadata/_tab_index = 2
 
 [node name="VBox" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info"]
 layout_mode = 2
@@ -335,22 +332,22 @@ size_flags_horizontal = 3
 
 [node name="DetenteIndicator" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
 text = "Détente streak: 0 / threshold N (disabled)"
+theme_override_font_sizes/font_size = 14
 
 [node name="BetrayalsHeader" type="Label" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 text = "Betrayals observed by you"
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="BetrayalsList" type="VBoxContainer" parent="VBox/HSplit/LeftPanel/Bundle4Tabs/Info/VBox"]
 layout_mode = 2
 
 [node name="OrderHeader" type="Label" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
-theme_override_font_sizes/font_size = 14
 text = "Orders for selected unit"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.65, 0.78, 0.95, 1)
 
 [node name="OrderScroll" type="ScrollContainer" parent="VBox/HSplit/LeftPanel"]
 layout_mode = 2
