@@ -28,7 +28,7 @@ var _raw: Dictionary
 var _state: Dictionary  # raw["state"] cached for hot accessors
 var _map: Dictionary    # raw["state"]["map"] cached
 
-func _init(view_payload: Dictionary) -> void:
+func _init(view_payload: Dictionary = {}) -> void:
 	_raw = view_payload
 	_state = _raw.get("state", {})
 	_map = _state.get("map", {})

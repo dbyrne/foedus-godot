@@ -308,6 +308,36 @@ Open PR.
 
 ---
 
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Five deviations from the original 2a plan, all minor:
+
+1. **Components use loose-typed cross-references** (`var press = null` not
+   `var press: PressController = null`) for the same reason Phase 1 needed
+   preload-paths over class_names: headless `--script` invocation parses
+   before class_name registration completes.
+
+2. **`is_inside_tree()` early-exits removed** from rebuild functions.
+   They caused silent no-ops in headless mode where `root.add_child()`
+   doesn't satisfy `is_inside_tree()` until process loops start.
+
+3. **`_on_view_changed` defers via `call_deferred`** when a scene's
+   children haven't yet been built (i.e., when `attach_game` is called
+   before `_ready` has run). Lets the controller wire up before
+   `_build_layout` finishes.
+
+4. **ViewModel `_init` takes a default empty Dict** so generic
+   `script.new()` instantiation tests work. Production calls always
+   pass a payload.
+
+5. **Sociogram label-text rendering**: still uses raw `draw_string` on
+   variable Cormorant Garamond Italic. At negotiation-screen scale the
+   labels render legibly; a Label-child rewrite (per Phase 1 lesson)
+   may not be needed, but flag for re-examination if labels regress at
+   smaller sizes.
+
+---
+
 ## Sub-phase 2b · Orders + drag-from-piece
 
 Detailed plan written when 2a merges. High-level scope:
