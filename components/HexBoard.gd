@@ -3,18 +3,24 @@ class_name HexBoard
 ##
 ## Full hex-grid renderer driven by a ViewModel. Instantiates one
 ## CouncilHex per tile, positions them via Tokens.hex_to_px(q, r),
-## tracks hovered/selected hexes for click feedback.
-##
-## Drag-state for order entry is deferred to Phase 2b.
+## tracks click + drag-state for order entry.
 ##
 ## Signals:
-##   tile_clicked(node_id, button)   — left or right click on any hex
-##   unit_clicked(unit_id, button)   — left or right click on a hex with a unit
+##   tile_clicked(node_id, button)             — left/right click
+##   unit_clicked(unit_id, button)             — left/right click on a unit
+##   drag_proposed(from_unit_id, to_node_id)   — drag from own unit released
+##                                                on a tile
 ##
-## Usage:
-##   var board := HexBoard.new()
-##   board.set_view_model(view_model)
-##   add_child(board)
+## Drag rules:
+## - Mouse-down LEFT on an own unit  → start drag, remember source unit.
+## - Mouse-motion while dragging     → ghost arrow drawn from source to
+##                                     current pointer position.
+## - Mouse-up LEFT on a tile         → emit drag_proposed; consumer
+##                                     decides legality + the resulting
+##                                     order kind (Move / SupportMove /
+##                                     SupportHold / Hold).
+## - Right-click anywhere            → tile_clicked with button=RIGHT
+##                                     (used to cancel a queued order).
 ##
 ## Spec: docs/specs/2026-04-29-ui-rebuild-phase2-screens.md
 ##
@@ -23,10 +29,17 @@ const CouncilHexScript = preload("res://components/CouncilHex.gd")
 
 signal tile_clicked(node_id: int, button: int)
 signal unit_clicked(unit_id: int, button: int)
+signal drag_proposed(from_unit_id: int, to_node_id: int)
 
 var _view_model = null  # ViewModel; loose typing avoids class_name ordering
 var _hex_nodes: Dictionary = {}   # node_id → CouncilHex Node2D
 var _selected_unit_id: int = -1
+
+# Drag state
+var _drag_from_unit_id: int = -1
+var _drag_from_pos: Vector2 = Vector2.ZERO
+var _drag_current_pos: Vector2 = Vector2.ZERO
+var _is_dragging: bool = false
 
 
 func set_view_model(vm) -> void:
@@ -114,16 +127,80 @@ func _supply_for_tile(tile: Dictionary) -> int:
 func _input(event: InputEvent) -> void:
 	if not is_inside_tree() or _view_model == null:
 		return
-	if event is InputEventMouseButton and event.pressed:
-		var local: Vector2 = to_local(event.position)
-		var hit_node_id := _node_id_at(local)
-		if hit_node_id < 0:
+	if event is InputEventMouseButton:
+		_handle_mouse_button(event)
+	elif event is InputEventMouseMotion and _is_dragging:
+		_drag_current_pos = to_local(event.position)
+		queue_redraw()
+
+
+func _handle_mouse_button(event: InputEventMouseButton) -> void:
+	var local: Vector2 = to_local(event.position)
+	var hit_node_id := _node_id_at(local)
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			# Start a drag if pressing on one of our own units.
+			if hit_node_id >= 0:
+				var t = _view_model.tile_for_node(hit_node_id)
+				var unit = t.get("unit")
+				if unit != null and int(unit.get("player", -1)) == _view_model.my_player_id():
+					_drag_from_unit_id = int(unit["id"])
+					_drag_from_pos = _hex_nodes[hit_node_id].position
+					_drag_current_pos = local
+					_is_dragging = true
+					queue_redraw()
+					return
+			# Not a drag start — just a click.
+			if hit_node_id >= 0:
+				_emit_click(hit_node_id, MOUSE_BUTTON_LEFT)
+		else:
+			# Mouse released. If we were dragging, propose an order.
+			if _is_dragging:
+				_is_dragging = false
+				if hit_node_id >= 0 and _drag_from_unit_id >= 0:
+					drag_proposed.emit(_drag_from_unit_id, hit_node_id)
+				_drag_from_unit_id = -1
+				queue_redraw()
+				return
+			if hit_node_id >= 0:
+				# Treat unconsumed mouse-up as click for non-own units
+				# (clicking an opponent unit, etc).
+				pass
+	elif event.pressed:
+		# Right or middle click.
+		if hit_node_id >= 0:
+			_emit_click(hit_node_id, event.button_index)
+
+
+func _emit_click(node_id: int, button: int) -> void:
+	var t = _view_model.tile_for_node(node_id)
+	var unit = t.get("unit")
+	if unit != null:
+		unit_clicked.emit(int(unit["id"]), button)
+	tile_clicked.emit(node_id, button)
+
+
+func _draw() -> void:
+	# Ghost arrow during drag — drawn over the hex grid.
+	if _is_dragging and _drag_from_unit_id >= 0:
+		var color := Tokens.player_main(_view_model.my_player_id())
+		color = Color(color.r, color.g, color.b, 0.65)
+		var dir := (_drag_current_pos - _drag_from_pos).normalized()
+		var inset := 14.0
+		if _drag_from_pos.distance_to(_drag_current_pos) < inset:
 			return
-		var t = _view_model.tile_for_node(hit_node_id)
-		var unit = t.get("unit")
-		if unit != null:
-			unit_clicked.emit(int(unit["id"]), event.button_index)
-		tile_clicked.emit(hit_node_id, event.button_index)
+		var p_from := _drag_from_pos + dir * inset
+		var p_to := _drag_current_pos
+		draw_line(p_from, p_to, color, 3.0)
+		var perp := Vector2(-dir.y, dir.x)
+		var head_len := 11.0
+		var head_w := 6.5
+		var head := PackedVector2Array([
+			p_to,
+			p_to - dir * head_len + perp * head_w,
+			p_to - dir * head_len - perp * head_w,
+		])
+		draw_colored_polygon(head, color)
 
 
 func _node_id_at(local_point: Vector2) -> int:

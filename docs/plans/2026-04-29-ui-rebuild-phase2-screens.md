@@ -340,7 +340,41 @@ Five deviations from the original 2a plan, all minor:
 
 ## Sub-phase 2b · Orders + drag-from-piece
 
-Detailed plan written when 2a merges. High-level scope:
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Shipped with these specifics:
+
+1. **OrderArrow** is a Node2D with four kinds (Move solid+filled-head,
+   SupportMove dashed+open-head, SupportHold dashed-ring around the
+   target unit, Hold solid ring on own unit). Color from
+   Tokens.player_main; ghost variant lowers alpha for in-flight drags.
+
+2. **HexBoard drag-state** lives entirely in `_input` on the existing
+   Node2D. Mouse-down on an own unit starts a drag; motion updates the
+   ghost-arrow draw; mouse-up emits `drag_proposed(from_unit_id,
+   to_node_id)`. Right-click is forwarded as a normal click (the
+   Orders scene interprets right-click on an own unit as cancel-order).
+
+3. **OrderController** is a separate RefCounted (parallel to
+   PressController). Holds `orders[unit_id] = order_dict`. Its
+   `interpret_drag` static method does the gesture-to-Order mapping
+   using ViewModel.legal_orders_for(uid) — the UI never invents an
+   order the server hasn't already greenlit.
+
+4. **Phase router** lives in CouncilEntry. The launcher subscribes to
+   CouncilGame.phase_transition and swaps between
+   CouncilNegotiation.tscn and CouncilOrders.tscn. The active scene's
+   `attach_game(game)` is called on mount so it picks up the existing
+   ViewModel without a fresh /view fetch.
+
+5. **Test fixture refresh** — `legal_orders` was using `{"kind":...}`
+   keys; the actual wire format from `serialize_order` uses `{"type":
+   ...}`. Fixture corrected; `interpret_drag` walks the legal set
+   matching by `type` field.
+
+### Original sketch
+
+High-level scope (sketch from initial plan, kept for reference):
 
 - Extend HexBoard with drag-state machine (mousedown on own unit →
   rubber-band arrow → mouseup on target).
@@ -359,7 +393,44 @@ Estimated 5 tasks, ~3–5 days.
 
 ## Sub-phase 2c · Resolution playback
 
-Detailed plan written when 2b merges. High-level scope:
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Shipped with these specifics:
+
+1. **ResolutionTimeline** is pure-data RefCounted — diffs two view
+   payloads and yields events {move, dislodge, ownership, leverage,
+   score}. Foedus's resolution log isn't transmitted (deliberate wire
+   omission), so the diff approach is the only way to reconstruct
+   what happened. Six unit-test cases cover each event kind
+   independently + an identical-snapshots null case.
+
+2. **CombatBeat** is a Node2D with a `play(duration)` self-tween that
+   animates radial expansion + crater + fade, then queue_free()'s.
+   Sibling pattern lets CouncilResolution spawn many short-lived
+   beats without managing their lifecycle.
+
+3. **CouncilResolution** schedules events sequentially via chained
+   Tweens (each event creates a tween that fires the next event on
+   completion). Move events render a CombatBeat in the player's
+   color at the destination; dislodges render a blood-red beat at
+   the source; leverage events render a brief gold thread between
+   the two players' homes.
+
+4. **Auto-mount of Resolution between turns** is not yet wired in
+   CouncilEntry's phase router — Resolution is invoked
+   programmatically via `play_between(prev_view, curr_view)`. The
+   auto-flow (detect turn number increase → fetch /history snapshots
+   → mount Resolution → on `playback_finished` mount next
+   Negotiation) lands in 2d.
+
+5. **Score / ownership events** are surfaced as data but don't yet
+   have dedicated visuals — they're implied by the move/dislodge
+   beats. Phase 3 polish: floating "+N" wax-seal motes from each
+   scoring player's home, brief tile-color fade for ownership flips.
+
+### Original sketch
+
+High-level scope (sketch from initial plan, kept for reference):
 
 - New `ResolutionTimeline.gd` (pure logic, unit-testable) takes two
   consecutive snapshots and produces an event list with timestamps.
@@ -377,7 +448,49 @@ Estimated 6–8 tasks, ~5–7 days.
 
 ## Sub-phase 2d · Bookends + flag-day swap
 
-Detailed plan written when 2c merges. High-level scope:
+### Implementation note (post-execution amendment, 2026-04-29)
+
+Shipped:
+
+1. **CouncilCoronation**: large candle-yellow "VICTORY" title, italic
+   subtitle ("by treaty — détente prevailed" / "by force of arms"),
+   crests for each winner side-by-side, FINAL SCORES grid with
+   sovereigns highlighted, View Replay + Exit buttons.
+
+2. **CouncilPairwise**: bilateral dossier — two crests with
+   ScalesOfLeverage between them; the scales' tilt and load reflect
+   the actual `aid_given[(me, them)]` ledger; leverage delta shown
+   prominently with "(you owe me)" / "(I owe you)" / "even" suffix;
+   stance labels for both directions; betrayal log filtered to this
+   pair. Auto-focuses the player with largest |leverage| if no
+   explicit `set_focus_player(pid)` call.
+
+3. **CouncilReplay**: scrub-through-history viewer. Loads
+   `/games/<id>/history` to learn the snapshot list, fetches each
+   snapshot via `/history/<turn>/view/<player>` on demand (cached).
+   Prev / Next / scrub-slider step through; "Play Resolution N→N+1"
+   mounts the existing CouncilResolution scene over the current
+   snapshot pair.
+
+4. **Auto-resolution router**: CouncilEntry now subscribes to
+   CouncilGame.view_changed, caches the previous view's payload, and
+   when a new view's `turn` is greater than the cached one, mounts
+   CouncilResolution.play_between(prev, curr). On
+   `playback_finished`, the resolution scene queue_frees and the
+   underlying Negotiation/Orders screen resumes visibility.
+
+5. **Flag-day swap**:
+   - `project.godot`: `run/main_scene` flipped from
+     `res://scenes/Main.tscn` to `res://scenes/council/CouncilEntry.tscn`.
+   - CouncilEntry's "v0 mode" branch removed; the launcher now offers
+     a single "Take the throne" button.
+   - Legacy `Main.tscn` / `Main.gd` / `HexMap.gd` / `GameClient.gd` /
+     `SoundManager.gd` files remain in the repo for archeological
+     reference; they're no longer entry points.
+
+### Original sketch
+
+High-level scope (sketch from initial plan, kept for reference):
 
 - CouncilPairwise: bilateral dossier — opens on sociogram crest click.
   Shows ScalesOfLeverage + leverage history graph + recent supports
