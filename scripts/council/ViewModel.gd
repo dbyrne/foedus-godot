@@ -41,6 +41,13 @@ func _init(view_payload: Dictionary = {}) -> void:
 	_raw = view_payload
 	_state = _raw.get("state", {})
 	_map = _state.get("map", {})
+	_check_wire_version()
+
+
+func _check_wire_version() -> void:
+	var v = _state.get("wire_version", 0)
+	if v != 3:
+		push_warning("foedus-godot expects wire_version 3, got %s — features may misbehave" % v)
 
 
 # --- Top-level identifiers ----------------------------------------------
