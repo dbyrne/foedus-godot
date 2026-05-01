@@ -55,6 +55,12 @@ func refresh_view() -> void:
 func _on_response(endpoint: String, data: Variant) -> void:
 	if endpoint.begins_with("/games/") and endpoint.ends_with("/view/%d" % view_player):
 		_apply_view(data)
+	elif endpoint.begins_with("/games/") and endpoint.ends_with("/press-update"):
+		# /press-update returns the player's updated view (same shape as /view).
+		# Feed it directly into the ViewModel so intent arrows refresh without
+		# a separate round-trip.
+		if data is Dictionary:
+			_apply_view(data)
 	elif endpoint.begins_with("/games/") and (
 			endpoint.ends_with("/chat")
 			or endpoint.ends_with("/commit")
