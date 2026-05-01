@@ -29,6 +29,7 @@ const BrassPlateScript = preload("res://components/BrassPlate.gd")
 const ViewModelScript  = preload("res://scripts/council/ViewModel.gd")
 const OrderControllerScript = preload("res://scripts/council/OrderController.gd")
 const OrderArrowScript = preload("res://components/OrderArrow.gd")
+const SupportArrowHintScript = preload("res://scripts/council/SupportArrowHint.gd")
 
 var council_game: Node = null  # CouncilGame
 var _shell: Node = null
@@ -231,15 +232,26 @@ func _make_arrow_for_order(vm, unit_id: int, ord: Dictionary,
 			var dest: int = int(ord.get("dest", src_node_id))
 			var dt: Dictionary = vm.tile_for_node(dest)
 			arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
-		"SupportHold":
-			var t: Dictionary = vm.unit_by_id(int(ord.get("target", -1)))
-			if not t.is_empty():
-				var tt: Dictionary = vm.tile_for_node(int(t["location"]))
-				arrow.to_pos = Tokens.hex_to_px(int(tt["q"]), int(tt["r"]))
-		"SupportMove":
-			var dest2: int = int(ord.get("target_dest", -1))
-			var dt2: Dictionary = vm.tile_for_node(dest2)
-			arrow.to_pos = Tokens.hex_to_px(int(dt2["q"]), int(dt2["r"]))
+		"Support":
+			# Resolve support arrow destination using the shared helper
+			# (require_dest → declared intent → legal fallback → ring).
+			var target_unit: Dictionary = vm.unit_by_id(int(ord.get("target", -1)))
+			if not target_unit.is_empty():
+				var target_loc: int = int(target_unit.get("location", -1))
+				var hint: Dictionary = SupportArrowHintScript.resolve(vm, ord)
+				if hint["dest"] >= 0:
+					var dt: Dictionary = vm.tile_for_node(hint["dest"])
+					if not dt.is_empty():
+						arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
+						# Dim the arrow when we're guessing from legal moves.
+						if hint["dim"]:
+							arrow.ghost = true
+						return arrow
+				# No destination found — collapse to ring rendering.
+				var tt: Dictionary = vm.tile_for_node(target_loc)
+				if not tt.is_empty():
+					arrow.from_pos = Tokens.hex_to_px(int(tt["q"]), int(tt["r"]))
+					arrow.to_pos = arrow.from_pos
 		"Hold":
 			arrow.to_pos = src_pos
 	return arrow

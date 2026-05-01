@@ -41,6 +41,13 @@ func _init(view_payload: Dictionary = {}) -> void:
 	_raw = view_payload
 	_state = _raw.get("state", {})
 	_map = _state.get("map", {})
+	_check_wire_version()
+
+
+func _check_wire_version() -> void:
+	var v = _state.get("wire_version", 0)
+	if v != 3:
+		push_warning("foedus-godot expects wire_version 3, got %s — features may misbehave" % v)
 
 
 # --- Top-level identifiers ----------------------------------------------
@@ -278,6 +285,27 @@ func declared_intents() -> Array:
 
 func your_betrayals() -> Array:
 	return _raw.get("your_betrayals", [])
+
+
+# --- Wire v3 event channels -------------------------------------------
+
+func intent_revisions() -> Array:
+	## IntentRevised events for the current turn. Each entry: {turn, player,
+	## intent: Intent|null, previous: Intent|null, visible_to: list|null}.
+	## intent=null means a retraction.
+	return _state.get("intent_revisions", [])
+
+
+func support_lapses() -> Array:
+	## SupportLapsed events for the current turn. Each entry: {turn,
+	## supporter: unit_id, target: unit_id, reason: String}.
+	return _state.get("support_lapses", [])
+
+
+func done_clears() -> Array:
+	## DoneCleared events for the current turn. Each entry: {turn, player,
+	## source_player, source_unit}.
+	return _state.get("done_clears", [])
 
 
 # --- Replay metadata ----------------------------------------------------

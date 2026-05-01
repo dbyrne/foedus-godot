@@ -5,18 +5,16 @@ class_name OrderArrow
 ## on the HexBoard. Color comes from the issuing player; dash style
 ## comes from the order kind:
 ##
-##   Move           → solid bold line, filled triangle head
-##   SupportMove    → dashed line (long dashes), open arrowhead
-##   SupportHold    → short dashed loop on the supported unit
-##   Hold           → small ring on the unit (no arrow)
+##   Move     → solid bold line, filled triangle head
+##   Support  → dashed line to target's destination if known, else dashed ring
+##   Hold     → small ring on the unit (no arrow)
 ##
 ## Spec: docs/specs/2026-04-29-ui-rebuild-phase2-screens.md
 ##
 
-const KIND_MOVE          := "Move"
-const KIND_SUPPORT_MOVE  := "SupportMove"
-const KIND_SUPPORT_HOLD  := "SupportHold"
-const KIND_HOLD          := "Hold"
+const KIND_MOVE    := "Move"
+const KIND_SUPPORT := "Support"
+const KIND_HOLD    := "Hold"
 
 @export var from_pos: Vector2 = Vector2.ZERO :
 	set(value): from_pos = value; queue_redraw()
@@ -42,10 +40,13 @@ func _draw() -> void:
 	match kind:
 		KIND_MOVE:
 			_draw_move_arrow(from_pos, to_pos, color)
-		KIND_SUPPORT_MOVE:
-			_draw_support_move(from_pos, to_pos, color)
-		KIND_SUPPORT_HOLD:
-			_draw_support_hold(to_pos, color)
+		KIND_SUPPORT:
+			# When from_pos == to_pos the caller has no destination info;
+			# fall back to dashed ring around the target unit's location.
+			if from_pos.distance_squared_to(to_pos) < 1.0:
+				_draw_support_ring(to_pos, color)
+			else:
+				_draw_support_line(from_pos, to_pos, color)
 		KIND_HOLD:
 			_draw_hold_ring(to_pos, color)
 
@@ -70,8 +71,8 @@ func _draw_move_arrow(a: Vector2, b: Vector2, color: Color) -> void:
 	draw_colored_polygon(head, color)
 
 
-func _draw_support_move(a: Vector2, b: Vector2, color: Color) -> void:
-	## Dashed line — supports a Move into b.
+func _draw_support_line(a: Vector2, b: Vector2, color: Color) -> void:
+	## Dashed line from supporter to target's destination (or current location).
 	var dir := (b - a).normalized()
 	var inset := 14.0
 	var p_from := a + dir * inset
@@ -95,8 +96,9 @@ func _draw_support_move(a: Vector2, b: Vector2, color: Color) -> void:
 	draw_line(p_to, p_to - dir * head_len - perp * head_w, color, 2.0)
 
 
-func _draw_support_hold(target: Vector2, color: Color) -> void:
-	## Short dashed ring around the supported unit's hex.
+func _draw_support_ring(target: Vector2, color: Color) -> void:
+	## Short dashed ring around the supported unit's hex (used when the
+	## target's destination is not yet known).
 	var radius := 18.0
 	var dash_arc := 0.35  # radians
 	var gap_arc := 0.20

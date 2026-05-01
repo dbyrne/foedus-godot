@@ -116,8 +116,8 @@ func history_view(game_id: String, turn: int, player: int) -> void:
 ##   3. Each human seat calls press_commit(player, press, orders, aid_spends)
 ##      atomically. When all have committed, the server resolves the round.
 ##
-## Bundle 4 adds aid_spends to /commit — list of {target_unit, target_order}
-## dicts. Aid is gated on mutual-ALLY stance with the recipient in the
+## Bundle 4 adds aid_spends to /commit — list of {target_unit} dicts.
+## Aid is gated on mutual-ALLY stance with the recipient in the
 ## previous turn's locked press.
 
 
@@ -137,5 +137,17 @@ func press_commit(game_id: String, player: int, press: Dictionary,
 		"player": player,
 		"press": press,
 		"orders": orders,
+		"aid_spends": aid_spends,
+	})
+
+
+func press_update(game_id: String, player: int, press: Dictionary,
+		aid_spends: Array = []) -> void:
+	## Submit press intents and aid spends WITHOUT signaling done.
+	## Allows revisions before /commit. Returns the player's full view
+	## (same shape as /view GET response). Wire protocol v3.
+	post_request("/games/%s/press-update" % game_id, {
+		"player": player,
+		"press": press,
 		"aid_spends": aid_spends,
 	})

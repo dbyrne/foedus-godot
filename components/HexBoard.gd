@@ -17,8 +17,7 @@ class_name HexBoard
 ##                                     current pointer position.
 ## - Mouse-up LEFT on a tile         → emit drag_proposed; consumer
 ##                                     decides legality + the resulting
-##                                     order kind (Move / SupportMove /
-##                                     SupportHold / Hold).
+##                                     order kind (Move / Support / Hold).
 ## - Right-click anywhere            → tile_clicked with button=RIGHT
 ##                                     (used to cancel a queued order).
 ##

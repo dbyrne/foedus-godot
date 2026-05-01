@@ -157,12 +157,10 @@ func _describe_order(order: Dictionary) -> String:
 			return "Hold"
 		"Move":
 			return "Move → n%d" % int(order.get("dest", -1))
-		"SupportHold":
-			return "Support u%d Hold" % int(order.get("target", -1))
-		"SupportMove":
-			return "Support u%d → n%d" % [
-				int(order.get("target", -1)),
-				int(order.get("target_dest", -1)),
-			]
+		"Support":
+			var req_dest: int = int(order.get("require_dest", -1))
+			if req_dest >= 0:
+				return "Support u%d → n%d" % [int(order.get("target", -1)), req_dest]
+			return "Support u%d" % int(order.get("target", -1))
 		_:
 			return t
