@@ -106,7 +106,6 @@ func to_aid_payload() -> Array:
 	for other_pid in aid_targets.keys():
 		spends.append({
 			"target_unit": null,  # caller fills from ViewModel
-			"target_order": null,
 			"_recipient_pid": other_pid,  # carried for downstream
 		})
 	return spends
