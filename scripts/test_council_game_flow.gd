@@ -88,7 +88,8 @@ func _initialize() -> void:
 	var aid_spends: Array = client.calls[0].get("aid_spends", [])
 	failures += _expect("commit carries wire-format aid spend",
 			aid_spends.size() == 1
-			and Dictionary(aid_spends[0].get("target_order", {})).get("type") == "Hold")
+			and aid_spends[0].has("target_unit")
+			and not aid_spends[0].has("target_order"))
 
 	client.calls.clear()
 	client.response.emit("/games/game-123/commit", {"ok": true})
