@@ -25,6 +25,7 @@ const OrdersPanelScript  = preload("res://components/OrdersPanel.gd")
 const TensionScript      = preload("res://components/TensionMeter.gd")
 const BrassPlateScript   = preload("res://components/BrassPlate.gd")
 const OrderArrowScript   = preload("res://components/OrderArrow.gd")
+const SupportArrowHintScript = preload("res://scripts/council/SupportArrowHint.gd")
 const OrderControllerScript = preload("res://scripts/council/OrderController.gd")
 const ViewModelScript    = preload("res://scripts/council/ViewModel.gd")
 
@@ -221,23 +222,19 @@ func _make_arrow_for_order(vm, unit_id: int, ord: Dictionary,
 			var dt: Dictionary = vm.tile_for_node(dest)
 			arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
 		"Support":
-			# If the target unit has a visible destination, draw toward it;
-			# otherwise collapse to_pos == from_pos so OrderArrow draws a ring.
+			# Resolve support arrow destination using the shared helper
+			# (require_dest → declared intent → legal fallback → ring).
 			var target_unit: Dictionary = vm.unit_by_id(int(ord.get("target", -1)))
 			if not target_unit.is_empty():
 				var target_loc: int = int(target_unit.get("location", -1))
-				# Look for target's queued move in legal / visible orders.
-				var target_legal: Array = vm.legal_orders_for(int(ord.get("target", -1)))
-				var move_dest := -1
-				for lo in target_legal:
-					if String(lo.get("type", "")) == "Move":
-						move_dest = int(lo.get("dest", -1))
-						break
-				var draw_node: int = move_dest if move_dest >= 0 else target_loc
-				if draw_node >= 0:
-					var dt: Dictionary = vm.tile_for_node(draw_node)
+				var hint: Dictionary = SupportArrowHintScript.resolve(vm, ord)
+				if hint["dest"] >= 0:
+					var dt: Dictionary = vm.tile_for_node(hint["dest"])
 					if not dt.is_empty():
 						arrow.to_pos = Tokens.hex_to_px(int(dt["q"]), int(dt["r"]))
+						# Dim the arrow when we're guessing from legal moves.
+						if hint["dim"]:
+							arrow.ghost = true
 						return arrow
 				# No destination found — collapse to ring rendering.
 				var tt: Dictionary = vm.tile_for_node(target_loc)
