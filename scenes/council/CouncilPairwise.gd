@@ -32,6 +32,14 @@ var _them_stats_label: Label
 var _recent_intents_box: VBoxContainer
 var _their_stances_label: Label
 
+# Wire v3 event panels
+var _support_lapses_header = null
+var _support_lapses_box: VBoxContainer
+var _intent_revisions_header = null
+var _intent_revisions_box: VBoxContainer
+var _done_clears_header = null
+var _done_clears_box: VBoxContainer
+
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -167,9 +175,48 @@ func _build_layout() -> void:
 
 	_betrayals_box = VBoxContainer.new()
 	_betrayals_box.position = Vector2(60, 570)
-	_betrayals_box.size = Vector2(1160, 200)
+	_betrayals_box.size = Vector2(560, 96)
 	_betrayals_box.add_theme_constant_override("separation", 4)
 	_root_layer.add_child(_betrayals_box)
+
+	# Support lapses panel
+	_support_lapses_header = BrassPlateScript.new()
+	_support_lapses_header.text = "SUPPORT LAPSES"
+	_support_lapses_header.font_size_px = 11
+	_support_lapses_header.position = Vector2(660, 530)
+	_root_layer.add_child(_support_lapses_header)
+
+	_support_lapses_box = VBoxContainer.new()
+	_support_lapses_box.position = Vector2(660, 570)
+	_support_lapses_box.size = Vector2(560, 96)
+	_support_lapses_box.add_theme_constant_override("separation", 4)
+	_root_layer.add_child(_support_lapses_box)
+
+	# Intent revisions panel
+	_intent_revisions_header = BrassPlateScript.new()
+	_intent_revisions_header.text = "INTENT REVISIONS"
+	_intent_revisions_header.font_size_px = 11
+	_intent_revisions_header.position = Vector2(60, 680)
+	_root_layer.add_child(_intent_revisions_header)
+
+	_intent_revisions_box = VBoxContainer.new()
+	_intent_revisions_box.position = Vector2(60, 720)
+	_intent_revisions_box.size = Vector2(560, 96)
+	_intent_revisions_box.add_theme_constant_override("separation", 4)
+	_root_layer.add_child(_intent_revisions_box)
+
+	# Done-cleared panel
+	_done_clears_header = BrassPlateScript.new()
+	_done_clears_header.text = "COMMITS UNLOCKED"
+	_done_clears_header.font_size_px = 11
+	_done_clears_header.position = Vector2(660, 680)
+	_root_layer.add_child(_done_clears_header)
+
+	_done_clears_box = VBoxContainer.new()
+	_done_clears_box.position = Vector2(660, 720)
+	_done_clears_box.size = Vector2(560, 96)
+	_done_clears_box.add_theme_constant_override("separation", 4)
+	_root_layer.add_child(_done_clears_box)
 
 	# Close button
 	var close_btn := Button.new()
@@ -305,6 +352,45 @@ func _on_view_changed(vm) -> void:
 		empty.add_theme_color_override("font_color", Tokens.BONE_DIM)
 		_betrayals_box.add_child(empty)
 
+	# Support lapses
+	for c in _support_lapses_box.get_children():
+		c.queue_free()
+	var lapses: Array = vm.support_lapses()
+	if lapses.is_empty():
+		_support_lapses_header.visible = false
+		_support_lapses_box.visible = false
+	else:
+		_support_lapses_header.visible = true
+		_support_lapses_box.visible = true
+		for lapse in lapses:
+			_support_lapses_box.add_child(_lapse_row(lapse))
+
+	# Intent revisions
+	for c in _intent_revisions_box.get_children():
+		c.queue_free()
+	var revisions: Array = vm.intent_revisions()
+	if revisions.is_empty():
+		_intent_revisions_header.visible = false
+		_intent_revisions_box.visible = false
+	else:
+		_intent_revisions_header.visible = true
+		_intent_revisions_box.visible = true
+		for rev in revisions:
+			_intent_revisions_box.add_child(_revision_row(rev))
+
+	# Done clears
+	for c in _done_clears_box.get_children():
+		c.queue_free()
+	var clears: Array = vm.done_clears()
+	if clears.is_empty():
+		_done_clears_header.visible = false
+		_done_clears_box.visible = false
+	else:
+		_done_clears_header.visible = true
+		_done_clears_box.visible = true
+		for cl in clears:
+			_done_clears_box.add_child(_done_clear_row(cl))
+
 
 func _default_focus(vm, me: int) -> int:
 	## Pick the non-me player with the largest |leverage| as the
@@ -372,3 +458,85 @@ func _betrayal_row(b: Dictionary) -> Control:
 	msg.add_theme_color_override("font_color", Tokens.BONE)
 	row.add_child(msg)
 	return row
+
+
+func _lapse_row(lapse: Dictionary) -> Control:
+	var supporter: int = int(lapse.get("supporter", -1))
+	var target: int    = int(lapse.get("target", -1))
+	var raw_reason: String = String(lapse.get("reason", ""))
+	var reason_text: String
+	match raw_reason:
+		"geometry_break":
+			reason_text = "geometry break (target moved out of reach)"
+		"pin_mismatch":
+			reason_text = "pin mismatch (target moved to a different hex)"
+		"target_destroyed":
+			reason_text = "target destroyed before resolution"
+		"self_dislodge_blocked":
+			reason_text = "would have dislodged your own unit"
+		_:
+			reason_text = raw_reason
+	var l := Label.new()
+	l.text = "u%d support of u%d lapsed: %s" % [supporter, target, reason_text]
+	l.add_theme_font_override("font", load(Tokens.FONT_SERIF) as Font)
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Tokens.BONE)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	return l
+
+
+func _describe_order(ord: Dictionary) -> String:
+	var verb: String = String(ord.get("type", ord.get("kind", "?")))
+	var detail := ""
+	if ord.has("dest"):
+		detail = "→n%s" % str(ord["dest"])
+	elif ord.has("target_unit"):
+		detail = "·u%s" % str(ord["target_unit"])
+	return "%s%s" % [verb.to_upper(), detail]
+
+
+func _revision_row(rev: Dictionary) -> Control:
+	var player: int = int(rev.get("player", -1))
+	var intent: Variant = rev.get("intent")
+	var previous: Variant = rev.get("previous")
+	var text: String
+	if previous == null and intent != null:
+		var ord: Dictionary = intent.get("declared_order", {})
+		text = "P%d declared intent for u%d: %s" % [
+			player, int(intent.get("unit_id", -1)), _describe_order(ord)
+		]
+	elif intent == null and previous != null:
+		text = "P%d retracted intent for u%d" % [
+			player, int(previous.get("unit_id", -1))
+		]
+	elif intent != null and previous != null:
+		var ord_now: Dictionary = intent.get("declared_order", {})
+		var ord_was: Dictionary = previous.get("declared_order", {})
+		text = "P%d revised intent for u%d: was %s, now %s" % [
+			player, int(intent.get("unit_id", -1)),
+			_describe_order(ord_was), _describe_order(ord_now)
+		]
+	else:
+		text = "P%d intent event (unknown)" % player
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", load(Tokens.FONT_SERIF) as Font)
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Tokens.BONE)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	return l
+
+
+func _done_clear_row(cl: Dictionary) -> Control:
+	var player: int        = int(cl.get("player", -1))
+	var source_player: int = int(cl.get("source_player", -1))
+	var source_unit: int   = int(cl.get("source_unit", -1))
+	var l := Label.new()
+	l.text = "P%d's commit was unlocked because P%d revised plan for u%d" % [
+		player, source_player, source_unit
+	]
+	l.add_theme_font_override("font", load(Tokens.FONT_SERIF) as Font)
+	l.add_theme_font_size_override("font_size", 14)
+	l.add_theme_color_override("font_color", Tokens.BONE)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	return l
