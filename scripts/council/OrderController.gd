@@ -62,9 +62,7 @@ static func interpret_drag(view_model, from_unit_id: int,
 	##
 	## Mapping:
 	##   - source.location == to_node_id           → Hold(unit=src)
-	##   - to has friendly unit + their declared/draft
-	##     intent is Move(dest=X)                  → SupportMove(target=u, dest=X)
-	##   - to has friendly unit + they're holding  → SupportHold(target=u)
+	##   - to has friendly unit                     → Support(target=u) [reactive]
 	##   - else                                    → Move(dest=to_node_id)
 	##
 	## Returns {} if no legal order matches the gesture.
@@ -86,72 +84,12 @@ static func interpret_drag(view_model, from_unit_id: int,
 	if to_unit != null and int(to_unit.get("player", -1)) == view_model.my_player_id() \
 			and int(to_unit.get("id", -1)) != from_unit_id:
 		var friend_uid := int(to_unit["id"])
-		var support_ref := _support_reference_for_friend(
-			view_model, friend_uid, local_intents
-		)
-		if not support_ref.is_empty():
-			var ref_kind := String(support_ref.get("type", ""))
-			if ref_kind == "Move":
-				for dest in support_ref.get("dests", []):
-					var support_move := _find_legal(legal, "SupportMove",
-						{"target": friend_uid, "target_dest": int(dest)})
-					if not support_move.is_empty():
-						return support_move
-				return {}
-			if ref_kind == "Hold":
-				return _find_legal(legal, "SupportHold", {"target": friend_uid})
-			return {}
-		# Default to SupportHold for friendly units with no declared Move.
-		return _find_legal(legal, "SupportHold", {"target": friend_uid})
+		# Unified reactive Support — engine adapts to what the target does.
+		return _find_legal(legal, "Support", {"target": friend_uid})
 
 	# Default: Move to the target.
 	return _find_legal(legal, "Move", {"dest": to_node_id})
 
-
-static func _support_reference_for_friend(view_model, friend_uid: int,
-		local_intents: Array) -> Dictionary:
-	var local_ref := _reference_from_intents(view_model, friend_uid, local_intents)
-	if not local_ref.is_empty():
-		return local_ref
-	return _reference_from_intents(
-		view_model, friend_uid, view_model.declared_intents()
-	)
-
-
-static func _reference_from_intents(view_model, friend_uid: int,
-		intents: Array) -> Dictionary:
-	var move_dests: Array = []
-	var saw_hold := false
-	var saw_other := false
-	for intent in intents:
-		if not (intent is Dictionary):
-			continue
-		var item: Dictionary = intent
-		var pid := int(item.get("player_id", view_model.my_player_id()))
-		if pid != view_model.my_player_id():
-			continue
-		if int(item.get("unit_id", -1)) != friend_uid:
-			continue
-		var declared = item.get("declared_order", {})
-		if not (declared is Dictionary):
-			saw_other = true
-			continue
-		var kind := String(declared.get("type", declared.get("kind", "")))
-		if kind == "Move":
-			var dest := int(declared.get("dest", -1))
-			if dest >= 0 and not move_dests.has(dest):
-				move_dests.append(dest)
-		elif kind == "Hold":
-			saw_hold = true
-		else:
-			saw_other = true
-	if not move_dests.is_empty():
-		return {"type": "Move", "dests": move_dests}
-	if saw_hold:
-		return {"type": "Hold"}
-	if saw_other:
-		return {"type": "Other"}
-	return {}
 
 
 static func _find_legal(legal: Array, kind: String,

@@ -305,8 +305,9 @@ func _draw() -> void:
 			_draw_arrow(src_px, dest_px, SELECT_RING)
 		elif t == "Hold":
 			draw_arc(src_px, HEX_SIZE * zoom * 0.55, 0.0, TAU, 36, SELECT_RING, 2.0)
-		elif t == "SupportHold":
-			# Line from supporter to target unit's hex.
+		elif t == "Support":
+			# Dashed line from supporter to the target unit's current location.
+			# If the target has a visible move destination, draw toward that instead.
 			var target_uid: int = int(order.get("target", -1))
 			var target_data: Dictionary = units.get(str(target_uid), {})
 			if target_data.is_empty():
@@ -314,15 +315,6 @@ func _draw() -> void:
 			var target_qr: Array = coords[str(target_data["location"])]
 			var target_px: Vector2 = _axial_to_pixel(target_qr[0], target_qr[1], origin)
 			_draw_dashed_line(src_px, target_px, SELECT_RING)
-		elif t == "SupportMove":
-			# Line from supporter to target_dest, marked at the supporter side.
-			var tgt_dest_id: int = int(order.get("target_dest", -1))
-			if not coords.has(str(tgt_dest_id)):
-				continue
-			var tgt_qr: Array = coords[str(tgt_dest_id)]
-			var tgt_px: Vector2 = _axial_to_pixel(tgt_qr[0], tgt_qr[1], origin)
-			_draw_dashed_line(src_px, tgt_px, SELECT_RING)
-			draw_arc(src_px, HEX_SIZE * zoom * 0.55, 0.0, TAU, 36, SELECT_RING, 1.5)
 
 
 func _draw_arrow(from: Vector2, to: Vector2, color: Color) -> void:

@@ -105,9 +105,8 @@ func seal_intent() -> void:
 
 func _resolve_aid_payload() -> Array:
 	## Convert PressController's per-player aid_targets into actual
-	## AidSpend dicts by picking the first owned unit of each recipient
-	## and a Hold order against it. Phase 2b will refine to per-unit
-	## targeting via the order-entry UI.
+	## AidSpend dicts by picking the first owned unit of each recipient.
+	## Targeting is reactive — the engine assigns aid at resolution time.
 	var out: Array = []
 	if view_model == null or press == null:
 		return out
@@ -123,7 +122,6 @@ func _resolve_aid_payload() -> Array:
 			continue
 		out.append({
 			"target_unit": target_unit_id,
-			"target_order": {"type": "Hold"},
 		})
 	return out
 

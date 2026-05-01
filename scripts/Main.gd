@@ -2,8 +2,7 @@
 ##
 ## Order-entry flow:
 ##   - Click your unit on the map -> selects it. The OrderList panel shows
-##     EVERY legal order for that unit (Hold, Move-to-X, SupportHold-of-Y,
-##     SupportMove-Y-to-Z) as buttons.
+##     EVERY legal order for that unit (Hold, Move-to-X, Support-of-Y) as buttons.
 ##   - Map-click shortcuts cover the most common cases:
 ##     * Click own hex   -> Hold (queued)
 ##     * Click adjacent  -> Move (queued)
@@ -73,7 +72,7 @@ var pending_orders: Dictionary = {}
 var _was_terminal: bool = false
 # Bundle 4 / press v0 state. `pending_stance` maps other_player_id -> stance
 # string ("ally"|"neutral"|"hostile"). `pending_aid` is an array of
-# {target_unit, target_order} dicts ready to send on /commit.
+# {target_unit} dicts ready to send on /commit.
 var pending_stance: Dictionary = {}
 var pending_aid: Array = []
 # `pending_intents` maps unit_id (int) -> {declared_order: Dict|null,
@@ -81,7 +80,7 @@ var pending_aid: Array = []
 # intent for that unit). `recipients_raw` is the raw text from the per-row
 # LineEdit (empty = public broadcast; "0,2" = bilateral).
 var pending_intents: Dictionary = {}
-# Cached map from a "stable spend key" (target_unit + target_order_str) to
+# Cached map from a "stable spend key" (target_unit:order) to
 # the AidSpend dict, so toggling spend buttons can find their entry.
 var _aid_spend_keys: Dictionary = {}
 # Replay state. `current_live_turn` is the server's authoritative latest;
@@ -450,12 +449,12 @@ func _populate_order_list(unit_id: int) -> void:
 		label.text = "(no legal orders)"
 		order_list.add_child(label)
 		return
-	var groups: Dictionary = {"Hold": [], "Move": [], "SupportHold": [], "SupportMove": []}
+	var groups: Dictionary = {"Hold": [], "Move": [], "Support": []}
 	for o in legal:
 		var t: String = str(o.get("type", ""))
 		if groups.has(t):
 			groups[t].append(o)
-	for group_type in ["Hold", "Move", "SupportHold", "SupportMove"]:
+	for group_type in ["Hold", "Move", "Support"]:
 		for o in groups[group_type]:
 			var btn := Button.new()
 			btn.text = _format_order(o)
@@ -489,13 +488,11 @@ func _format_order(o: Dictionary) -> String:
 			return "Hold"
 		"Move":
 			return "Move → node %d" % int(o.get("dest", -1))
-		"SupportHold":
-			return "Support hold of u%d" % int(o.get("target", -1))
-		"SupportMove":
-			return "Support u%d → node %d" % [
-				int(o.get("target", -1)),
-				int(o.get("target_dest", -1)),
-			]
+		"Support":
+			var req: int = int(o.get("require_dest", -1))
+			if req >= 0:
+				return "Support u%d → node %d" % [int(o.get("target", -1)), req]
+			return "Support u%d" % int(o.get("target", -1))
 		_:
 			return "(unknown)"
 
@@ -821,7 +818,6 @@ func _populate_aid_panel(view: Dictionary) -> void:
 			var key := "u%d:Move:n%d" % [unit_id, dest]
 			_aid_spend_keys[key] = {
 				"target_unit": unit_id,
-				"target_order": declared,
 			}
 			var btn := Button.new()
 			btn.toggle_mode = true
