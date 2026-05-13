@@ -42,13 +42,42 @@ var _resolution_scene: Node = null
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	_build_layout()
 	_game_client = GameClientScript.new()
 	add_child(_game_client)
 	if _game_client.has_signal("response"):
 		_game_client.response.connect(_on_response)
 	if _game_client.has_signal("failure"):
 		_game_client.failure.connect(_on_failure)
+
+	# Check for URL-param auto-connect (foedus.web hosted mode).
+	var params = GameClientScript.read_url_params()
+	if params["gid"] != "" and params["player_idx"] >= 0:
+		_game_client.base_url = params["api"] if params["api"] != "" else _game_client.base_url
+		_game_client.bearer_token = params["token"]
+		_game_id = params["gid"]
+		_auto_mount_council(_game_id, params["player_idx"])
+		return
+
+	# No URL params — fall back to the in-canvas lobby.
+	_build_layout()
+
+
+## When invoked with URL params, skip the lobby and mount the council
+## game controller directly. The game must already exist on the server.
+func _auto_mount_council(gid: String, player_idx: int) -> void:
+	_game_id = gid
+	_council_game = CouncilGameScript.new()
+	add_child(_council_game)
+	_council_game.attach(_game_client, gid, player_idx)
+	if _council_game.has_signal("phase_transition"):
+		_council_game.phase_transition.connect(_on_phase_transition)
+	if _council_game.has_signal("view_changed"):
+		_council_game.view_changed.connect(_on_view_for_resolution)
+	# Mount Negotiation by default; first /view response will fire
+	# phase_transition and swap if needed.
+	_mount_scene_for_phase(ViewModelScript.PHASE_NEGOTIATION)
+	_council_game.refresh_view()
+	visible = false
 
 
 func _build_layout() -> void:
