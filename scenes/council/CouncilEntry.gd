@@ -55,7 +55,9 @@ func _ready() -> void:
 		_game_client.base_url = params["api"] if params["api"] != "" else _game_client.base_url
 		_game_client.bearer_token = params["token"]
 		_game_id = params["gid"]
-		_auto_mount_council(_game_id, params["player_idx"])
+		# Defer because we're still inside _ready() — the parent node is
+		# busy setting up children and add_child() would raise.
+		_auto_mount_council.call_deferred(_game_id, params["player_idx"])
 		return
 
 	# No URL params — fall back to the in-canvas lobby.
