@@ -10,6 +10,9 @@ signal failure(endpoint: String, message: String)
 
 @export var base_url: String = "http://127.0.0.1:8090"
 
+## Optional bearer token. When set, sent as `Authorization: Bearer <token>` on every request.
+var bearer_token: String = ""
+
 
 func _build_request_node(endpoint: String) -> HTTPRequest:
 	var http := HTTPRequest.new()
@@ -39,7 +42,8 @@ func _on_request_completed(result: int, response_code: int,
 
 func get_request(endpoint: String) -> void:
 	var http := _build_request_node(endpoint)
-	var err := http.request("%s%s" % [base_url, endpoint])
+	var headers := _auth_headers()
+	var err := http.request("%s%s" % [base_url, endpoint], headers)
 	if err != OK:
 		http.queue_free()
 		failure.emit(endpoint, "request failed to launch: %d" % err)
@@ -47,7 +51,8 @@ func get_request(endpoint: String) -> void:
 
 func post_request(endpoint: String, body: Dictionary) -> void:
 	var http := _build_request_node(endpoint)
-	var headers := ["Content-Type: application/json"]
+	var headers := _auth_headers()
+	headers.append("Content-Type: application/json")
 	var payload := JSON.stringify(body)
 	var err := http.request("%s%s" % [base_url, endpoint], headers,
 			HTTPClient.METHOD_POST, payload)
@@ -58,7 +63,8 @@ func post_request(endpoint: String, body: Dictionary) -> void:
 
 func delete_request(endpoint: String) -> void:
 	var http := _build_request_node(endpoint)
-	var err := http.request("%s%s" % [base_url, endpoint], [],
+	var headers := _auth_headers()
+	var err := http.request("%s%s" % [base_url, endpoint], headers,
 			HTTPClient.METHOD_DELETE)
 	if err != OK:
 		http.queue_free()
@@ -151,3 +157,43 @@ func press_update(game_id: String, player: int, press: Dictionary,
 		"press": press,
 		"aid_spends": aid_spends,
 	})
+
+
+func _auth_headers() -> PackedStringArray:
+	var headers := PackedStringArray()
+	if bearer_token != "":
+		headers.append("Authorization: Bearer " + bearer_token)
+	return headers
+
+
+## Read gid / player_idx / token / api from window.location.search.
+## Returns a Dictionary with those four keys; values are "" / -1 when missing.
+## Returns all-defaults when not running on web.
+static func read_url_params() -> Dictionary:
+	var result := {"gid": "", "player_idx": -1, "token": "", "api": ""}
+	if not OS.has_feature("web"):
+		return result
+	if not Engine.has_singleton("JavaScriptBridge"):
+		return result
+	var window = JavaScriptBridge.get_interface("window")
+	if window == null:
+		return result
+	var search: String = String(window.location.search)
+	if search.begins_with("?"):
+		search = search.substr(1)
+	for pair in search.split("&"):
+		if pair.is_empty():
+			continue
+		var kv = pair.split("=", true, 1)
+		if kv.size() != 2:
+			continue
+		var k: String = kv[0]
+		var v: String = JavaScriptBridge.eval(
+			"decodeURIComponent('" + kv[1].replace("'", "%27") + "')"
+		)
+		match k:
+			"gid": result["gid"] = v
+			"player_idx": result["player_idx"] = int(v)
+			"token": result["token"] = v
+			"api": result["api"] = v
+	return result
